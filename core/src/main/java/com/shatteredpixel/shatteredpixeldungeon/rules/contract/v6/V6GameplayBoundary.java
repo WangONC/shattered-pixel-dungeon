@@ -8,7 +8,7 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6;
  * namespace.</p>
  */
 public final class V6GameplayBoundary {
-	public static final String CONTRACT = "v0.2-final";
+	public static final String CONTRACT = "0.2-final";
 	public static final int TARGET_SCHEMA = 6;
 	public static final boolean PUBLIC_GAMEPLAY_ENABLED = false;
 

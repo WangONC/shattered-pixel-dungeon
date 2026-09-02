@@ -100,11 +100,14 @@ public class GameplayComponentsV6ArchitectureTest {
 			"List<Template> templates()", "ArrayList<Template> templates(Category category)",
 			"ClassGameplayComponentSpec create(Template template, String id)",
 			"boolean playerExposed(ClassGameplayComponentSpec value)");
-	private static final Set<String> V6_BANNED_SYMBOLS = set(
+	private static final Set<String> LEGACY_RULE_TYPES = set(
 			"ClassBuild", "SkillSpec", "EffectSpec", "ResourceSpec", "ClassGameplayComponentSpec",
 			"RuleCost", "RuleModifier", "SkillConstraint", "TargetingSpec", "RuleMark", "RuleMode",
 			"PlayerBuildAssembler", "EffectVocabularyRegistry", "GameplayComponentRegistry",
 			"resolvePendingBindings");
+	private static final Set<String> LEGACY_EXTERNAL_TYPES = set(
+			"com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleMark",
+			"com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleMode");
 	private static final Set<String> V6_BANNED_QA_SYMBOLS = set(
 			"ArchetypeStressReport", "BuilderVocabularyExposureAudit", "CompatibilityReport",
 			"FuzzReport", "GameplayComponentCoverageAudit", "LawTraitVocabularyAudit",
@@ -247,7 +250,7 @@ public class GameplayComponentsV6ArchitectureTest {
 				if ((declaresV6Package || referencesV6) && !inContract && !inMigration) {
 					fail(path + " places or references v6 production code outside rules/contract/v6 or rules/migration/v5");
 				}
-				boolean referencesLegacy = code.contains("rules.legacy.v5") || containsAnyIdentifier(code, V6_BANNED_SYMBOLS);
+				boolean referencesLegacy = legacyDependencyViolation(code) != null;
 				if (referencesLegacy && referencesV6 && !inMigration) {
 					fail(path + " depends on both v5 and v6 outside the migration bridge");
 				}
@@ -256,10 +259,7 @@ public class GameplayComponentsV6ArchitectureTest {
 					assertFalse(path + " imports the legacy boundary", code.contains("rules.legacy.v5"));
 					assertFalse(path + " imports legacy QA", code.contains(
 							"com.shatteredpixel.shatteredpixeldungeon.qa."));
-					for (String banned : V6_BANNED_SYMBOLS) {
-						assertFalse(path + " depends on frozen legacy symbol " + banned,
-								containsIdentifier(code, banned));
-					}
+					assertNull(path + " depends on the frozen legacy model", legacyDependencyViolation(code));
 					for (String banned : V6_BANNED_QA_SYMBOLS) {
 						assertFalse(path + " depends on legacy QA symbol " + banned,
 								containsIdentifier(code, banned));
@@ -277,6 +277,7 @@ public class GameplayComponentsV6ArchitectureTest {
 				FROZEN_LEGACY_BOUNDARY_METADATA_FILES);
 		assertFalse(V6GameplayBoundary.PUBLIC_GAMEPLAY_ENABLED);
 		assertEquals(6, V6GameplayBoundary.TARGET_SCHEMA);
+		assertEquals("0.2-final", V6GameplayBoundary.CONTRACT);
 	}
 
 	@Test public void pathGuardRejectsUnversionedRulesSubtreesAndForbiddenV6Dependencies() {
@@ -300,11 +301,25 @@ public class GameplayComponentsV6ArchitectureTest {
 						+ "public final class QaLeak { CompatibilityReport value; }"), "legacy QA package");
 		assertRulePathRejected("contract/v6/spec/AuditLeak.java", javaSource("rules.contract.v6.spec",
 				"public final class AuditLeak { LawTraitVocabularyAudit value; }"), "legacy QA symbol");
+		assertRulePathRejected("contract/v6/spec/ImportedResourceLeak.java", javaSource("rules.contract.v6.spec",
+				"import com.shatteredpixel.shatteredpixeldungeon.rules.ResourceSpec; "
+						+ "public final class ImportedResourceLeak { ResourceSpec value; }"), "legacy model");
+		assertRulePathRejected("contract/v6/spec/ImportedEffectLeak.java", javaSource("rules.contract.v6.spec",
+				"import com.shatteredpixel.shatteredpixeldungeon.rules.EffectSpec; "
+						+ "public final class ImportedEffectLeak extends EffectSpec {}"), "legacy model");
+		assertRulePathRejected("contract/v6/spec/QualifiedLeak.java", javaSource("rules.contract.v6.spec",
+				"public final class QualifiedLeak { "
+						+ "com.shatteredpixel.shatteredpixeldungeon.rules.ResourceSpec value; }"), "legacy model");
+		assertRulePathRejected("contract/v6/spec/WildcardLeak.java", javaSource("rules.contract.v6.spec",
+				"import com.shatteredpixel.shatteredpixeldungeon.rules.*; "
+						+ "public final class WildcardLeak { ResourceSpec value; }"), "legacy model");
 	}
 
 	@Test public void pathGuardAllowsContractSubpackagesMigrationBridgeAndFrozenLegacyRoot() {
-		assertRulePathAllowed("contract/v6/spec/StableId.java",
-				javaSource("rules.contract.v6.spec", "public final class StableId {}"));
+		assertRulePathAllowed("contract/v6/spec/ResourceSpec.java",
+				javaSource("rules.contract.v6.spec", "public final class ResourceSpec {}"));
+		assertRulePathAllowed("contract/v6/spec/EffectSpec.java",
+				javaSource("rules.contract.v6.spec", "public interface EffectSpec {}"));
 		assertRulePathAllowed("contract/v6/ref/ResourceRef.java",
 				javaSource("rules.contract.v6.ref", "public final class ResourceRef {}"));
 		assertRulePathAllowed("migration/v5/BridgeProbe.java", javaSource("rules.migration.v5",
@@ -449,11 +464,8 @@ public class GameplayComponentsV6ArchitectureTest {
 		if (code.contains("com.shatteredpixel.shatteredpixeldungeon.qa.")) {
 			return relative + " depends on the legacy QA package";
 		}
-		for (String banned : V6_BANNED_SYMBOLS) {
-			if (containsIdentifier(code, banned)) {
-				return relative + " depends on frozen legacy symbol " + banned;
-			}
-		}
+		String legacyViolation = legacyDependencyViolation(code);
+		if (legacyViolation != null) return relative + " depends on the frozen legacy model: " + legacyViolation;
 		for (String banned : V6_BANNED_QA_SYMBOLS) {
 			if (containsIdentifier(code, banned)) {
 				return relative + " depends on legacy QA symbol " + banned;
@@ -464,6 +476,29 @@ public class GameplayComponentsV6ArchitectureTest {
 			if (containsIdentifier(code, domain)) return relative + " creates forbidden fixed domain " + domain;
 		}
 		return null;
+	}
+
+	private static String legacyDependencyViolation(String source) {
+		String rulesPackage = "com.shatteredpixel.shatteredpixeldungeon.rules";
+		if (Pattern.compile("\\bimport\\s+(?:static\\s+)?" + Pattern.quote(rulesPackage) + "\\.\\*\\s*;")
+				.matcher(source).find()) return "wildcard import " + rulesPackage + ".*";
+		for (String type : LEGACY_RULE_TYPES) {
+			if ("resolvePendingBindings".equals(type)) {
+				if (containsIdentifier(source, type)) return "legacy auto-binding call " + type;
+				continue;
+			}
+			String qualified = rulesPackage + "." + type;
+			if (containsQualifiedName(source, qualified)) return qualified;
+		}
+		for (String qualified : LEGACY_EXTERNAL_TYPES) {
+			if (containsQualifiedName(source, qualified)) return qualified;
+		}
+		return source.contains("rules.legacy.v5") ? "legacy boundary package" : null;
+	}
+
+	private static boolean containsQualifiedName(String source, String qualifiedName) {
+		return Pattern.compile("(?<![A-Za-z0-9_$])" + Pattern.quote(qualifiedName)
+				+ "(?![A-Za-z0-9_$])").matcher(source).find();
 	}
 
 	private static void assertRulePathRejected(String relativePath, String source, String reason) {

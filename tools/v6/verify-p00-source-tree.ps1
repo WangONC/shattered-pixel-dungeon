@@ -48,7 +48,14 @@ foreach ($relative in $expectedHashes.Keys) {
     $path = Join-Path $sourceRoot $relative
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $failures.Add("FROZEN_MISSING:$relative"); continue }
     $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($actual -ne $expectedHashes[$relative]) { $failures.Add("FROZEN_HASH:${relative}:$actual") }
+    if ($actual -ne $expectedHashes[$relative]) {
+        # Git checkout may materialize text as CRLF on Windows. Compare the
+        # repository-semantic LF bytes without rewriting the frozen document.
+        $text = [System.IO.File]::ReadAllText($path).Replace("`r`n", "`n").Replace("`r", "`n")
+        $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($text)
+        $normalized = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        if ($normalized -ne $expectedHashes[$relative]) { $failures.Add("FROZEN_HASH:${relative}:raw=$actual:lf=$normalized") }
+    }
 }
 
 Write-Output "source_root=$sourceRoot"
