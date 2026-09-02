@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.RuleOwnedEntity;
 import com.shatteredpixel.shatteredpixeldungeon.rules.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.watabou.utils.Bundle;
 
 import java.util.ArrayList;
@@ -17,6 +18,8 @@ public final class GameplayComponentCoverageAudit {
 	}
 	public static final class Result {
 		public String schema="gameplay-component-compliance-matrix-2";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public int components, discussedComponentNotPlayerExposed, incomplete;
 		public final ArrayList<Row> rows=new ArrayList<>();
 		public final ArrayList<String> failures=new ArrayList<>();

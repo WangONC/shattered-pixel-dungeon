@@ -12,6 +12,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.SkillDelivery;
 import com.shatteredpixel.shatteredpixeldungeon.rules.SkillSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.TargetingRegistry;
 import com.shatteredpixel.shatteredpixeldungeon.rules.TargetingSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.watabou.utils.Bundle;
 
 import java.util.ArrayList;
@@ -21,6 +22,8 @@ import java.util.LinkedHashMap;
 public final class BuilderVocabularyExposureAudit {
 	public static final class Result {
 		public String schema = "builder-vocabulary-exposure-1";
+		public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public int runtimeSupported;
 		public int builderExposed;
 		public int supportedButNotExposed;

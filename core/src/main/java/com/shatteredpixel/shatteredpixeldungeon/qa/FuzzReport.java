@@ -1,9 +1,13 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
 public class FuzzReport {
+	public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+	public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 	public long seed;
 	public int totalGenerated;
 	public int syntacticValid;

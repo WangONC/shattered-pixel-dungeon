@@ -21,6 +21,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.RuleRuntime;
 import com.shatteredpixel.shatteredpixeldungeon.rules.SkillDelivery;
 import com.shatteredpixel.shatteredpixeldungeon.rules.SkillSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.TargetingSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ClassActionBar;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ClassActionExecutor;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ClassActionIcon;
@@ -36,6 +37,8 @@ import java.util.ArrayList;
 public final class PlayerClassCoreAudit {
 	public static final class Result {
 		public String schema = "player-class-core-1";
+		public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public boolean passed;
 		public int checks, failures, playerTextMissing;
 		public int foundationBudget, gunnerUsedBudget, gunnerFullAttackCost;

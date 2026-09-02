@@ -1,6 +1,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.watabou.utils.Bundle;
 
 import java.util.ArrayList;
@@ -8,7 +9,7 @@ import java.util.ArrayList;
 /** Rebuilds the ten coverage archetypes solely through formal player selections, then runs combat. */
 public final class PlayerArchetypeReconstructionAudit {
 	public static final class BuildRow {public String id;public int used,max;public boolean constructible,roundtrip,runtimeVerified;public final ArrayList<String> resources=new ArrayList<>();public final ArrayList<String> gameplayComponents=new ArrayList<>();public final ArrayList<String> skills=new ArrayList<>();public final ArrayList<String> classOperations=new ArrayList<>();public final ArrayList<String> failures=new ArrayList<>();public final ArrayList<String> validationIssues=new ArrayList<>();}
-	public static final class Result {public String schema="player-archetype-reconstruction-1";public int archetypes,qaBuildNotPlayerConstructible,discussedComponentNotPlayerExposed,dependencyMissingButDisabled,dependencyCopyValidationMismatch,runtimeFailures;public final ArrayList<BuildRow> builds=new ArrayList<>();public boolean passed;}
+	public static final class Result {public String schema="player-archetype-reconstruction-1";public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;public int archetypes,qaBuildNotPlayerConstructible,discussedComponentNotPlayerExposed,dependencyMissingButDisabled,dependencyCopyValidationMismatch,runtimeFailures;public final ArrayList<BuildRow> builds=new ArrayList<>();public boolean passed;}
 	private PlayerArchetypeReconstructionAudit() {}
 
 	public static Result run(){Result r=new Result();GameplayComponentCoverageAudit.Result coverage=GameplayComponentCoverageAudit.run();r.discussedComponentNotPlayerExposed=coverage.discussedComponentNotPlayerExposed;

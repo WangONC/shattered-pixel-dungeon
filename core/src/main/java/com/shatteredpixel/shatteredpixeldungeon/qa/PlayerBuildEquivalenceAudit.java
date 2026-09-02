@@ -1,6 +1,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.watabou.utils.Bundle;
 
 import java.util.ArrayList;
@@ -9,7 +10,7 @@ import java.util.LinkedHashMap;
 /** Proves that QA fixtures use only choices and parameter ranges reachable from the player Builder. */
 public final class PlayerBuildEquivalenceAudit {
 	public static final class BuildResult { public String id;public int used,max;public boolean constructible,roundtrip;public final ArrayList<String> failures=new ArrayList<>(); }
-	public static final class Result { public String schema="player-build-equivalence-1";public int builds,qaBuildNotPlayerConstructible,budgetMismatches,roundtripFailures;public final ArrayList<BuildResult> results=new ArrayList<>();public boolean passed; }
+	public static final class Result { public String schema="player-build-equivalence-1";public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;public int builds,qaBuildNotPlayerConstructible,budgetMismatches,roundtripFailures;public final ArrayList<BuildResult> results=new ArrayList<>();public boolean passed; }
 	private PlayerBuildEquivalenceAudit() {}
 
 	public static Result run(){Result result=new Result();LinkedHashMap<String,ClassBuild> builds=new LinkedHashMap<>();for(ArchetypeReferenceBuilds.Id id:ArchetypeReferenceBuilds.allIds())builds.put("ARCHETYPE:"+id.name(),ArchetypeReferenceBuilds.build(id));for(QaScenario scenario:FullSkillReferenceBuilds.scenarios())builds.put("RUNTIME:"+scenario.id,scenario.hero.classBuild);builds.putAll(LawTraitReferenceBuilds.all());for(String id:builds.keySet()){BuildResult row=check(id,builds.get(id));result.results.add(row);result.builds++;if(!row.constructible)result.qaBuildNotPlayerConstructible++;if(row.max!=ClassBudgetPolicy.newBuildBudget()+builds.get(id).progression.budgetBonus+restrictionBonus(builds.get(id)))result.budgetMismatches++;if(!row.roundtrip)result.roundtripFailures++;}result.passed=result.qaBuildNotPlayerConstructible==0&&result.budgetMismatches==0&&result.roundtripFailures==0;return result;}

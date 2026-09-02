@@ -1,8 +1,12 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
+
 import java.util.ArrayList;
 
 public class ScenarioResult {
+	public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+	public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 	public String id;
 	public long seed;
 	public String buildId;

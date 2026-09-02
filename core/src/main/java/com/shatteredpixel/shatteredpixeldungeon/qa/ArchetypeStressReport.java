@@ -1,5 +1,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
@@ -9,6 +11,8 @@ public final class ArchetypeStressReport {
 
 	public static class Summary {
 		public String schema="class-archetype-stress-summary-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public int archetypes, primaryArchetypes, scenarios, seedsPerScenario, totalRuns, victories, survivalFailures, runtimeFailures;
 		public int minimumBudget, maximumBudget;
 		public double budgetSpreadPercent;
@@ -22,6 +26,8 @@ public final class ArchetypeStressReport {
 
 	public static class RunResult {
 		public String schema="class-archetype-stress-run-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId,scenarioId,integrityClassification,failure;
 		public long seed;
 		public int usedBudget,maxBudget,turns,turnsToVictory;
