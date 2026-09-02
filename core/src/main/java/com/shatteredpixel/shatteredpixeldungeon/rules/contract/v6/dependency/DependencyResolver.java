@@ -7,6 +7,7 @@ import java.util.ArrayList;import java.util.Collections;import java.util.HashMap
 /** Pure read-only declaration resolver. It never fills, rewrites, removes, or reorders references. */
 public final class DependencyResolver {
 	public DependencyReport resolve(ClassBuildSpec build){return resolve(build,Collections.emptyList());}
+	public DependencyReport resolveReferences(ClassBuildSpec build,List<DependencyRequest> requests){if(build==null||requests==null)throw new IllegalArgumentException("build and requests are required");Map<StableId,List<StableTarget>> index=index(build);List<DependencyDiagnostic> result=new ArrayList<>();for(DependencyRequest request:requests)result.add(resolveOne(index,request));return new DependencyReport(result);}
 	public DependencyReport resolve(ClassBuildSpec build,List<DependencyRequest> additional){
 		if(build==null||additional==null)throw new IllegalArgumentException("build and requests are required");
 		List<DependencyDiagnostic> result=new ArrayList<>();Map<StableId,List<StableTarget>> index=index(build);

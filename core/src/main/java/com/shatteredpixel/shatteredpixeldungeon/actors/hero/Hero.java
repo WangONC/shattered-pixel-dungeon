@@ -238,6 +238,8 @@ public class Hero extends Char {
 
 	//Null for vanilla heroes. Configuration and mutable state are stored together in the Hero bundle.
 	private RuleRuntime ruleRuntime;
+	private String classBuildSpecV6Payload;
+	private String classRuntimeStateV6Payload;
 	
 	private ArrayList<Mob> visibleEnemies;
 
@@ -301,6 +303,8 @@ public class Hero extends Char {
 	private static final String EXPERIENCE	= "exp";
 	private static final String HTBOOST     = "htboost";
 	public static final String RULE_RUNTIME = "rule_runtime";
+	private static final String CLASS_BUILD_SPEC_V6 = "class_build_spec_v6";
+	private static final String CLASS_RUNTIME_STATE_V6 = "class_runtime_state_v6";
 	
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -327,6 +331,8 @@ public class Hero extends Char {
 			ruleRuntime.storeInBundle(runtimeBundle);
 			bundle.put(RULE_RUNTIME, runtimeBundle);
 		}
+		if (classBuildSpecV6Payload != null) bundle.put(CLASS_BUILD_SPEC_V6, classBuildSpecV6Payload);
+		if (classRuntimeStateV6Payload != null) bundle.put(CLASS_RUNTIME_STATE_V6, classRuntimeStateV6Payload);
 
 		belongings.storeInBundle( bundle );
 	}
@@ -357,6 +363,8 @@ public class Hero extends Char {
 		} else {
 			ruleRuntime = null;
 		}
+		classBuildSpecV6Payload = bundle.contains(CLASS_BUILD_SPEC_V6) ? bundle.getString(CLASS_BUILD_SPEC_V6) : null;
+		classRuntimeStateV6Payload = bundle.contains(CLASS_RUNTIME_STATE_V6) ? bundle.getString(CLASS_RUNTIME_STATE_V6) : null;
 
 		belongings.restoreFromBundle( bundle );
 	}
@@ -441,6 +449,19 @@ public class Hero extends Char {
 
 	public void setRuleRuntime(RuleRuntime runtime) {
 		this.ruleRuntime = runtime;
+	}
+
+	public void setGameplayComponentsV6Payloads(String buildPayload, String runtimePayload) {
+		this.classBuildSpecV6Payload = buildPayload;
+		this.classRuntimeStateV6Payload = runtimePayload;
+	}
+
+	public String gameplayComponentsV6BuildPayload() {
+		return classBuildSpecV6Payload;
+	}
+
+	public String gameplayComponentsV6RuntimePayload() {
+		return classRuntimeStateV6Payload;
 	}
 
 	@Override

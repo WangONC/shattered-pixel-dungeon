@@ -9,8 +9,8 @@ $delivery = [System.IO.Path]::GetFullPath($DeliveryRoot)
 $base = '1f3f6678eb7b8fa43df18deb5a46eda7e601a4b9'
 $expectedBranch = 'feature/gameplay-components-v6'
 $stage = Join-Path $delivery 'review-content'
-$bundle = Join-Path $delivery 'SPD_GC_V6_P01_REVIEW_BUNDLE.zip'
-$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P01_IDENTITY_CHECKPOINT.zip'
+$bundle = Join-Path $delivery 'SPD_GC_V6_P01_R1_REVIEW_BUNDLE.zip'
+$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P01_R1_CHECKPOINT.zip'
 $sourceManifest = Join-Path $delivery 'checkpoint/SOURCE_SHA256SUMS.txt'
 
 if (-not $delivery.StartsWith((Join-Path $repoRoot 'build'), [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -69,7 +69,7 @@ $remote = (& git -C $repoRoot remote -v) -join "`n"
     'git branch --show-current'
     $expectedBranch
     'git rev-parse HEAD'
-    $base
+    $head
     'git status --short'
     '<clean>'
     'git remote -v'
@@ -88,7 +88,7 @@ $manifest = [ordered]@{
     branch = $branch
     candidate_commit = $head
     checkpoint = [ordered]@{
-        file = 'SPD_GC_V6_P01_IDENTITY_CHECKPOINT.zip'
+        file = 'SPD_GC_V6_P01_R1_CHECKPOINT.zip'
         sha256 = $checkpointHash
         source_manifest_sha256 = $sourceManifestHash
         excluded_from_review_bundle = $true
@@ -118,7 +118,7 @@ $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $stag
 
 $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt')) | Where-Object { $_ }).Count
 @(
-    '# Gameplay Components v6 — P01 实施报告'
+    '# Gameplay Components v6 — P01-R1 实施报告'
     ''
     '## 结论'
     ''
@@ -138,15 +138,15 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     ''
     '## 实现结果'
     ''
-    '- 新建不可变 `StableId`、随机/确定性/迁移 ID generator 与 NFC `DisplayName` 验证。'
-    '- 新建 Contract 全部 typed Ref；`lastKnownDisplayName` 只作诊断显示，不参与解析。'
-    '- 新建只读 Resolver/Validator，覆盖 duplicate、missing、类型错误、非法循环、Unsupported 与 exclusive initial conflict。'
+    '- `TypedRef.equals/hashCode` 仅由具体 Ref 类型与 `targetId` 决定；`lastKnownDisplayName` 只作 unresolved UI 显示。'
+    '- 权威 Hero load 顺序执行 build 解析、DependencyResolver、ClassBuildValidator、runtime 恢复与 RuntimeStateValidator，并汇总四类 DependencyState。'
+    '- Runtime ResourceState 使用 `Map<ResourceRef, ResourceState>`，同 targetId 即使显示名不同也拒绝重复。'
     '- 建立 schema 6 `ClassBuildSpec` 与独立 `ClassRuntimeState`，保存玩家顺序、node ID 和全部 P01 runtime state。'
     '- 建立 Resource、Mark、Mode、Capacity、Entity、AbilityPool、Property、Recipe 数据边界；Contract 6.3 ResourceStorage capability/slot 已进入 canonical schema，但执行能力保持 Deferred。'
     '- rename/delete/duplicate/explicit rebind 均返回新 immutable graph；delete 不级联，同名重建不接管旧引用。'
-    '- canonical build/runtime codec 覆盖全部 P01 字段；独立反射式深等价 oracle 不复用 serializer 字符串。'
-    '- Hero Bundle adapter 使用独立 `class_build_spec_v6` / `class_runtime_state_v6` payload，并拒绝 build/runtime ID 冲突。'
-    '- v5→v6 migration 仅实现可重放 Resource 映射与 MigrationReport；Skill/Effect/Entity runtime 映射保持 skeleton。'
+    '- canonical build/runtime codec 覆盖全部 P01 字段；逐字段 mutation manifest 自动枚举 100+ build 与 65+ runtime case，并执行 canonical roundtrip 深等价。'
+    '- 实际 `Hero.storeInBundle/restoreFromBundle` 使用独立可选 `class_build_spec_v6` / `class_runtime_state_v6` payload；旧角色无字段时保持兼容。'
+    '- v5→v6 migration 仍只实现 Resource；gameplayComponents、skills、laws、traits、restrictions、operations、startingKit、progression、baseBudget 的未迁移语义逐类报告 DEFERRED/warning，且 `behaviorPreserved=false`。'
     '- v6 production 路径无 `resolvePendingBindings()`、无 first-item/default target fallback。'
     ''
     '## P00 Guard 误杀修正'

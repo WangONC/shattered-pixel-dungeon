@@ -1,14 +1,126 @@
 package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save;
 
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.ClassBuildValidator;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyDiagnostic;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyReport;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyResolver;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyState;
-import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.RuntimeStateValidator;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
 import com.watabou.utils.Bundle;
 
-/** Contract-side Hero bundle adapter. The two authoritative payloads are deliberately separate. */
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/** Authoritative, read-only v6 Hero save/load pipeline. */
 public final class HeroClassBundleCodec {
-	public static final String CLASS_BUILD_SPEC="class_build_spec_v6";public static final String CLASS_RUNTIME_STATE="class_runtime_state_v6";
-	private final CanonicalBuildCodec builds=new CanonicalBuildCodec();private final CanonicalRuntimeCodec runtime=new CanonicalRuntimeCodec();
-	public void store(Bundle heroBundle,ClassBuildSpec build,ClassRuntimeState state){if(heroBundle==null||build==null||state==null)throw new IllegalArgumentException("hero bundle, build, and state are required");if(!build.buildId().equals(state.buildId()))throw new IllegalArgumentException("runtime build id mismatch");heroBundle.put(CLASS_BUILD_SPEC,builds.serialize(build));heroBundle.put(CLASS_RUNTIME_STATE,runtime.serialize(state));}
-	public LoadPair load(Bundle heroBundle){if(heroBundle==null||!heroBundle.contains(CLASS_BUILD_SPEC)||!heroBundle.contains(CLASS_RUNTIME_STATE))return new LoadPair(DependencyState.UNRESOLVED,null,null,"v6 hero bundle payload missing");CanonicalLoadResult<ClassBuildSpec> build=builds.deserialize(heroBundle.getString(CLASS_BUILD_SPEC));if(build.value()==null)return new LoadPair(build.state(),null,null,build.diagnostics().toString());CanonicalLoadResult<ClassRuntimeState> state=runtime.deserialize(heroBundle.getString(CLASS_RUNTIME_STATE));if(state.value()==null)return new LoadPair(state.state(),build.value(),null,state.diagnostics().toString());if(!build.value().buildId().equals(state.value().buildId()))return new LoadPair(DependencyState.HARD_CONFLICT,build.value(),state.value(),"runtime build id mismatch");return new LoadPair(DependencyState.RESOLVED,build.value(),state.value(),"");}
-	public static final class LoadPair{private final DependencyState state;private final ClassBuildSpec build;private final ClassRuntimeState runtime;private final String diagnostic;LoadPair(DependencyState state,ClassBuildSpec build,ClassRuntimeState runtime,String diagnostic){this.state=state;this.build=build;this.runtime=runtime;this.diagnostic=diagnostic;}public DependencyState state(){return state;}public ClassBuildSpec build(){return build;}public ClassRuntimeState runtime(){return runtime;}public String diagnostic(){return diagnostic;}}
+	public static final String CLASS_BUILD_SPEC = "class_build_spec_v6";
+	public static final String CLASS_RUNTIME_STATE = "class_runtime_state_v6";
+
+	private final CanonicalBuildCodec builds = new CanonicalBuildCodec();
+	private final CanonicalRuntimeCodec runtime = new CanonicalRuntimeCodec();
+
+	public void store(Bundle heroBundle, ClassBuildSpec build, ClassRuntimeState state) {
+		if (heroBundle == null) throw new IllegalArgumentException("hero bundle is required");
+		Payloads payloads = payloads(build, state);
+		heroBundle.put(CLASS_BUILD_SPEC, payloads.build);
+		heroBundle.put(CLASS_RUNTIME_STATE, payloads.runtime);
+	}
+
+	public void store(Hero hero, ClassBuildSpec build, ClassRuntimeState state) {
+		if (hero == null) throw new IllegalArgumentException("hero is required");
+		Payloads payloads = payloads(build, state);
+		hero.setGameplayComponentsV6Payloads(payloads.build, payloads.runtime);
+	}
+
+	public LoadPair load(Bundle heroBundle) {
+		if (heroBundle == null || !heroBundle.contains(CLASS_BUILD_SPEC)
+				|| !heroBundle.contains(CLASS_RUNTIME_STATE)) return missing();
+		return loadPayloads(heroBundle.getString(CLASS_BUILD_SPEC), heroBundle.getString(CLASS_RUNTIME_STATE));
+	}
+
+	public LoadPair load(Hero hero) {
+		if (hero == null || hero.gameplayComponentsV6BuildPayload() == null
+				|| hero.gameplayComponentsV6RuntimePayload() == null) return missing();
+		return loadPayloads(hero.gameplayComponentsV6BuildPayload(), hero.gameplayComponentsV6RuntimePayload());
+	}
+
+	private Payloads payloads(ClassBuildSpec build, ClassRuntimeState state) {
+		if (build == null || state == null) throw new IllegalArgumentException("build and state are required");
+		if (!build.buildId().equals(state.buildId())) throw new IllegalArgumentException("runtime build id mismatch");
+		return new Payloads(builds.serialize(build), runtime.serialize(state));
+	}
+
+	private LoadPair loadPayloads(String buildPayload, String runtimePayload) {
+		CanonicalLoadResult<ClassBuildSpec> buildLoad = builds.deserialize(buildPayload);
+		if (buildLoad.value() == null) return new LoadPair(buildLoad.state(), null, null,
+				new DependencyReport(Collections.<DependencyDiagnostic>emptyList()), buildLoad.diagnostics().toString());
+
+		ClassBuildSpec build = buildLoad.value();
+		List<DependencyDiagnostic> diagnostics = new ArrayList<>();
+		diagnostics.addAll(new DependencyResolver().resolve(build).diagnostics());
+		diagnostics.addAll(new ClassBuildValidator().validate(build).diagnostics());
+
+		CanonicalLoadResult<ClassRuntimeState> runtimeLoad = runtime.deserialize(runtimePayload);
+		if (runtimeLoad.value() == null) {
+			DependencyReport report = new DependencyReport(diagnostics);
+			return new LoadPair(worst(runtimeLoad.state(), report.aggregateState()), build, null, report,
+					runtimeLoad.diagnostics().toString());
+		}
+
+		ClassRuntimeState state = runtimeLoad.value();
+		diagnostics.addAll(new RuntimeStateValidator().validate(build, state).diagnostics());
+		DependencyReport report = new DependencyReport(diagnostics);
+		DependencyState loadState = worst(worst(buildLoad.state(), runtimeLoad.state()), report.aggregateState());
+		return new LoadPair(loadState, build, state, report, "");
+	}
+
+	private static LoadPair missing() {
+		return new LoadPair(DependencyState.UNRESOLVED, null, null,
+				new DependencyReport(Collections.<DependencyDiagnostic>emptyList()), "v6 hero bundle payload missing");
+	}
+
+	private static DependencyState worst(DependencyState left, DependencyState right) {
+		return severity(left) >= severity(right) ? left : right;
+	}
+
+	private static int severity(DependencyState state) {
+		switch (state) {
+			case HARD_CONFLICT: return 3;
+			case UNRESOLVED: return 2;
+			case UNSUPPORTED: return 1;
+			case RESOLVED: return 0;
+			default: throw new AssertionError(state);
+		}
+	}
+
+	private static final class Payloads {
+		private final String build;
+		private final String runtime;
+		private Payloads(String build, String runtime) { this.build = build; this.runtime = runtime; }
+	}
+
+	public static final class LoadPair {
+		private final DependencyState state;
+		private final ClassBuildSpec build;
+		private final ClassRuntimeState runtime;
+		private final DependencyReport report;
+		private final String diagnostic;
+		private LoadPair(DependencyState state, ClassBuildSpec build, ClassRuntimeState runtime,
+				DependencyReport report, String diagnostic) {
+			this.state = state;
+			this.build = build;
+			this.runtime = runtime;
+			this.report = report;
+			this.diagnostic = diagnostic;
+		}
+		public DependencyState state() { return state; }
+		public ClassBuildSpec build() { return build; }
+		public ClassRuntimeState runtime() { return runtime; }
+		public DependencyReport report() { return report; }
+		public String diagnostic() { return diagnostic; }
+	}
 }

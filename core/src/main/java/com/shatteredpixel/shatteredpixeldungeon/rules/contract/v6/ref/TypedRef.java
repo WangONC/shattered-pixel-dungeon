@@ -20,8 +20,7 @@ public abstract class TypedRef {
 
 	@Override public final boolean equals(Object other) {
 		return other != null && getClass() == other.getClass()
-				&& targetId.equals(((TypedRef)other).targetId)
-				&& lastKnownDisplayName.equals(((TypedRef)other).lastKnownDisplayName);
+				&& targetId.equals(((TypedRef)other).targetId);
 	}
-	@Override public final int hashCode() { return 31 * targetId.hashCode() + lastKnownDisplayName.hashCode(); }
+	@Override public final int hashCode() { return 31 * getClass().hashCode() + targetId.hashCode(); }
 }

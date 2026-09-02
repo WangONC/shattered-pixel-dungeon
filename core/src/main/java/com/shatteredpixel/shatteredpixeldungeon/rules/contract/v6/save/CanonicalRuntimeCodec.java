@@ -11,7 +11,7 @@ import java.util.ArrayList;import java.util.Collections;import java.util.LinkedH
 public final class CanonicalRuntimeCodec {
 	private static final String FORMAT="CLASS_RUNTIME_STATE_V6";
 	public String serialize(ClassRuntimeState state){CanonicalJsonWriter j=new CanonicalJsonWriter();j.beginObject().name("format").value(FORMAT).name("schema_version").value(ClassBuildSpec.SCHEMA_VERSION).name("build_id").value(state.buildId().value());
-		j.name("resources").beginArray();for(ResourceState v:state.resources())resource(j,v);j.endArray();j.name("modes").beginArray();for(ModeState v:state.modes())mode(j,v);j.endArray();
+		j.name("resources").beginArray();List<ResourceState> resources=new ArrayList<>(state.resources().values());resources.sort((a,b)->a.resource().targetId().compareTo(b.resource().targetId()));for(ResourceState v:resources)resource(j,v);j.endArray();j.name("modes").beginArray();for(ModeState v:state.modes())mode(j,v);j.endArray();
 		j.name("marks").beginArray();for(MarkState v:state.marks())mark(j,v);j.endArray();j.name("entities").beginArray();for(EntityInstanceState v:state.entities())entity(j,v);j.endArray();
 		opaque(j,"scheduled_payloads",state.scheduledPayloads());opaque(j,"attachments",state.attachments());map(j,"cooldowns",state.cooldowns());map(j,"uses_this_floor",state.usesThisFloor());
 		opaque(j,"snapshots",state.snapshots());opaque(j,"learned_abilities",state.learnedAbilities());j.name("properties").beginArray();for(PropertyInventoryState v:state.properties())property(j,v);j.endArray();
