@@ -105,6 +105,37 @@ public class GameplayComponentsV6ArchitectureTest {
 			"RuleCost", "RuleModifier", "SkillConstraint", "TargetingSpec", "RuleMark", "RuleMode",
 			"PlayerBuildAssembler", "EffectVocabularyRegistry", "GameplayComponentRegistry",
 			"resolvePendingBindings");
+	private static final Set<String> V6_BANNED_QA_SYMBOLS = set(
+			"ArchetypeStressReport", "BuilderVocabularyExposureAudit", "CompatibilityReport",
+			"FuzzReport", "GameplayComponentCoverageAudit", "LawTraitVocabularyAudit",
+			"PlayerArchetypeReconstructionAudit", "PlayerBuildEquivalenceAudit",
+			"PlayerClassCoreAudit", "ScenarioResult");
+	private static final Set<String> FROZEN_LEGACY_RULE_ROOT_FILES = set(
+			"BasicAttackProfile.java", "ClassBudgetPolicy.java", "ClassBuild.java",
+			"ClassBuildFormatter.java", "ClassBuildMigrator.java",
+			"ClassGameplayComponentSpec.java", "ClassGameplaySpec.java", "ClassLaw.java",
+			"ClassOperationRuntime.java", "ClassOperationSpec.java", "ClassProgression.java",
+			"ComponentDependency.java", "ConstraintRegistry.java", "CoreRuleVocabulary.java",
+			"CostRegistry.java", "CustomClassConfig.java", "CustomClassSummaryFormatter.java",
+			"DeliveryRegistry.java", "EffectFamily.java", "EffectSpec.java",
+			"EffectVocabularyRegistry.java", "GameplayComponentRegistry.java",
+			"LawTraitRegistry.java", "ModifierRegistry.java", "PlayerBuildAssembler.java",
+			"PlayerFacingBuildValidator.java", "PlayerFacingClassBuildFormatter.java",
+			"PlayerFacingValidationIssue.java", "ResourceEngine.java", "ResourceFlowSpec.java",
+			"ResourceRefillSpec.java", "ResourceRegistry.java", "ResourceSpec.java",
+			"Restriction.java", "RestrictionRegistry.java", "RuleCondition.java",
+			"RuleContext.java", "RuleCost.java", "RuleDefenseRuntime.java", "RuleDefinition.java",
+			"RuleDelayedPayload.java", "RuleEffect.java", "RuleEvent.java", "RuleEventBridge.java",
+			"RuleHooks.java", "RuleMarkCondition.java", "RuleMarkEffect.java", "RuleModifier.java",
+			"RuleModule.java", "RulePresentation.java", "RuleResourceState.java", "RuleRuntime.java",
+			"RuleSemanticFormatter.java", "RuleSemanticTag.java", "RuleTarget.java",
+			"RuleTestBuilds.java", "RuleTrace.java", "RuleTrigger.java", "SkillConstraint.java",
+			"SkillDelivery.java", "SkillEffectRuntime.java", "SkillSpec.java",
+			"SkillTargetResolver.java", "StartingKitSpec.java", "TargetingRegistry.java",
+			"TargetingSpec.java", "TraitSpec.java", "WorldCapability.java",
+			"WorldCapabilityValidator.java");
+	private static final Set<String> FROZEN_LEGACY_BOUNDARY_METADATA_FILES = set(
+			"legacy/v5/LegacyGameplayBoundary.java", "legacy/v5/package-info.java");
 
 	@Test public void legacyPublicFieldsAndAdjacentEnumsAreExactFrozenSnapshots() throws Exception {
 		String effect = source("core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/EffectSpec.java");
@@ -188,17 +219,26 @@ public class GameplayComponentsV6ArchitectureTest {
 
 	@Test public void v6ProductionRootAndOneWayMigrationBoundaryAreEnforcedAcrossProductionTree() throws Exception {
 		Path production = repoRoot().resolve("core/src/main/java");
-		Path contractRoot = production.resolve(
-				"com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6");
-		Path migrationRoot = production.resolve(
-				"com/shatteredpixel/shatteredpixeldungeon/rules/migration/v5");
+		Path rulesRoot = production.resolve("com/shatteredpixel/shatteredpixeldungeon/rules");
+		Path contractRoot = rulesRoot.resolve("contract/v6");
+		Path migrationRoot = rulesRoot.resolve("migration/v5");
 		assertTrue("v6 contract production root missing", Files.isDirectory(contractRoot));
 		assertTrue("v5-to-v6 migration bridge root missing", Files.isDirectory(migrationRoot));
+		Set<String> legacyRootFiles = new HashSet<>();
+		Set<String> legacyBoundaryFiles = new HashSet<>();
 		try (Stream<Path> files = Files.walk(production)) {
 			files.filter(path -> path.toString().endsWith(".java")).forEach(path -> {
-				String code = codeOnly(read(path));
+				String rawSource = read(path);
+				String code = codeOnly(rawSource);
 				boolean inContract = path.startsWith(contractRoot);
 				boolean inMigration = path.startsWith(migrationRoot);
+				if (path.startsWith(rulesRoot)) {
+					String relative = normalizePath(rulesRoot.relativize(path));
+					String violation = ruleProductionSourceViolation(relative, rawSource);
+					assertNull(path + " violates the frozen rules production layout: " + violation, violation);
+					if (relative.indexOf('/') < 0) legacyRootFiles.add(relative);
+					if (relative.startsWith("legacy/v5/")) legacyBoundaryFiles.add(relative);
+				}
 				String packageName = packageName(code);
 				boolean declaresV6Package = packageName.matches("(?:.*\\.)?v6(?:\\..*)?");
 				boolean declaresV6Type = Pattern.compile("\\b(?:class|interface|enum|record)\\s+V6[A-Za-z0-9_]*\\b")
@@ -214,8 +254,14 @@ public class GameplayComponentsV6ArchitectureTest {
 				if (inContract) {
 					assertFalse(path + " imports the migration bridge", code.contains("rules.migration.v5"));
 					assertFalse(path + " imports the legacy boundary", code.contains("rules.legacy.v5"));
+					assertFalse(path + " imports legacy QA", code.contains(
+							"com.shatteredpixel.shatteredpixeldungeon.qa."));
 					for (String banned : V6_BANNED_SYMBOLS) {
 						assertFalse(path + " depends on frozen legacy symbol " + banned,
+								containsIdentifier(code, banned));
+					}
+					for (String banned : V6_BANNED_QA_SYMBOLS) {
+						assertFalse(path + " depends on legacy QA symbol " + banned,
 								containsIdentifier(code, banned));
 					}
 					for (String domain : Arrays.asList("GUNNER_CORE", "SUMMONER_DOMAIN", "ENGINEERING_DOMAIN",
@@ -225,8 +271,48 @@ public class GameplayComponentsV6ArchitectureTest {
 				}
 			});
 		}
+		assertExact("frozen rules root Legacy Java files", legacyRootFiles,
+				FROZEN_LEGACY_RULE_ROOT_FILES);
+		assertExact("rules/legacy/v5 boundary metadata files", legacyBoundaryFiles,
+				FROZEN_LEGACY_BOUNDARY_METADATA_FILES);
 		assertFalse(V6GameplayBoundary.PUBLIC_GAMEPLAY_ENABLED);
 		assertEquals(6, V6GameplayBoundary.TARGET_SCHEMA);
+	}
+
+	@Test public void pathGuardRejectsUnversionedRulesSubtreesAndForbiddenV6Dependencies() {
+		assertRulePathRejected("spec/StableId.java",
+				javaSource("rules.spec", "public final class StableId {}"), "outside the frozen layout");
+		assertRulePathRejected("ref/ResourceRef.java",
+				javaSource("rules.ref", "public final class ResourceRef {}"), "outside the frozen layout");
+		assertRulePathRejected("builder/BuilderCommand.java",
+				javaSource("rules.builder", "public interface BuilderCommand {}"), "outside the frozen layout");
+		assertRulePathRejected("compile/ClassCompilePlan.java",
+				javaSource("rules.compile", "public final class ClassCompilePlan {}"), "outside the frozen layout");
+		assertRulePathRejected("legacy/v5/LegacyBehavior.java",
+				javaSource("rules.legacy.v5", "public final class LegacyBehavior {}"),
+				"not frozen Legacy boundary metadata");
+		assertRulePathRejected("contract/v6/spec/LegacyLeak.java", javaSource("rules.contract.v6.spec",
+				"import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary; "
+						+ "public final class LegacyLeak { LegacyGameplayBoundary value; }"),
+				"legacy boundary");
+		assertRulePathRejected("contract/v6/spec/QaLeak.java", javaSource("rules.contract.v6.spec",
+				"import com.shatteredpixel.shatteredpixeldungeon.qa.CompatibilityReport; "
+						+ "public final class QaLeak { CompatibilityReport value; }"), "legacy QA package");
+		assertRulePathRejected("contract/v6/spec/AuditLeak.java", javaSource("rules.contract.v6.spec",
+				"public final class AuditLeak { LawTraitVocabularyAudit value; }"), "legacy QA symbol");
+	}
+
+	@Test public void pathGuardAllowsContractSubpackagesMigrationBridgeAndFrozenLegacyRoot() {
+		assertRulePathAllowed("contract/v6/spec/StableId.java",
+				javaSource("rules.contract.v6.spec", "public final class StableId {}"));
+		assertRulePathAllowed("contract/v6/ref/ResourceRef.java",
+				javaSource("rules.contract.v6.ref", "public final class ResourceRef {}"));
+		assertRulePathAllowed("migration/v5/BridgeProbe.java", javaSource("rules.migration.v5",
+				"import com.shatteredpixel.shatteredpixeldungeon.rules.ClassBuild; "
+						+ "import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.V6GameplayBoundary; "
+						+ "public final class BridgeProbe { ClassBuild oldModel; V6GameplayBoundary newModel; }"));
+		assertRulePathAllowed("ClassBuild.java", read(repoRoot().resolve(
+				"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/ClassBuild.java")));
 	}
 
 	@Test public void oldQaReportsAreNeverV6CompletionEvidence() {
@@ -335,6 +421,80 @@ public class GameplayComponentsV6ArchitectureTest {
 		Matcher value = Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"").matcher(source);
 		while (value.find()) result.add(value.group(1));
 		return result;
+	}
+
+	private static String ruleProductionSourceViolation(String relativePath, String source) {
+		String relative = relativePath.replace('\\', '/');
+		boolean inContract = relative.startsWith("contract/v6/");
+		boolean inMigration = relative.startsWith("migration/v5/");
+		boolean inLegacyBoundary = relative.startsWith("legacy/v5/");
+		boolean frozenLegacyRoot = relative.indexOf('/') < 0
+				&& FROZEN_LEGACY_RULE_ROOT_FILES.contains(relative);
+		if (inLegacyBoundary && !FROZEN_LEGACY_BOUNDARY_METADATA_FILES.contains(relative)) {
+			return relative + " is not frozen Legacy boundary metadata";
+		}
+		if (!inContract && !inMigration && !inLegacyBoundary && !frozenLegacyRoot) {
+			return relative + " is outside the frozen layout; new production Java must be under "
+					+ "rules/contract/v6 or rules/migration/v5";
+		}
+		String code = codeOnly(source);
+		String declaredPackage = declaredPackageName(code);
+		String expectedPackage = expectedRulesPackage(relative);
+		if (!expectedPackage.equals(declaredPackage)) {
+			return relative + " declares package " + declaredPackage + " instead of " + expectedPackage;
+		}
+		if (!inContract) return null;
+		if (code.contains("rules.migration.v5")) return relative + " depends on the migration bridge";
+		if (code.contains("rules.legacy.v5")) return relative + " depends on the legacy boundary";
+		if (code.contains("com.shatteredpixel.shatteredpixeldungeon.qa.")) {
+			return relative + " depends on the legacy QA package";
+		}
+		for (String banned : V6_BANNED_SYMBOLS) {
+			if (containsIdentifier(code, banned)) {
+				return relative + " depends on frozen legacy symbol " + banned;
+			}
+		}
+		for (String banned : V6_BANNED_QA_SYMBOLS) {
+			if (containsIdentifier(code, banned)) {
+				return relative + " depends on legacy QA symbol " + banned;
+			}
+		}
+		for (String domain : Arrays.asList("GUNNER_CORE", "SUMMONER_DOMAIN", "ENGINEERING_DOMAIN",
+				"BLUE_MAGE_DOMAIN", "NECROMANCER_DOMAIN")) {
+			if (containsIdentifier(code, domain)) return relative + " creates forbidden fixed domain " + domain;
+		}
+		return null;
+	}
+
+	private static void assertRulePathRejected(String relativePath, String source, String reason) {
+		String violation = ruleProductionSourceViolation(relativePath, source);
+		assertNotNull(relativePath + " should be rejected", violation);
+		assertTrue(relativePath + " rejection should mention " + reason + ", actual=" + violation,
+				violation.contains(reason));
+	}
+
+	private static void assertRulePathAllowed(String relativePath, String source) {
+		assertNull(relativePath + " should be allowed",
+				ruleProductionSourceViolation(relativePath, source));
+	}
+
+	private static String javaSource(String packageSuffix, String body) {
+		return "package com.shatteredpixel.shatteredpixeldungeon." + packageSuffix + "; " + body;
+	}
+
+	private static String expectedRulesPackage(String relativePath) {
+		int slash = relativePath.lastIndexOf('/');
+		String suffix = slash < 0 ? "" : "." + relativePath.substring(0, slash).replace('/', '.');
+		return "com.shatteredpixel.shatteredpixeldungeon.rules" + suffix;
+	}
+
+	private static String declaredPackageName(String source) {
+		Matcher value = Pattern.compile("\\bpackage\\s+([A-Za-z0-9_.]+)\\s*;").matcher(source);
+		return value.find() ? value.group(1) : null;
+	}
+
+	private static String normalizePath(Path path) {
+		return path.toString().replace('\\', '/');
 	}
 
 	private static boolean containsAnyIdentifier(String source, Set<String> identifiers) {
