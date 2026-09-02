@@ -376,6 +376,9 @@ public class PixelScene extends Scene {
 	}
 	
 	public static void showBadge( Badges.Badge badge ) {
+		// Headless gameplay QA has no Scene/Game instance. Do not enqueue presentation work which
+		// can outlive the scenario and crash the backend thread after the gameplay listener clears.
+		if (com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.active()) return;
 		Game.runOnRenderThread(new Callback() {
 			@Override
 			public void call() {
@@ -405,7 +408,9 @@ public class PixelScene extends Scene {
 	
 	public static void shake( float magnitude, float duration){
 		magnitude *= SPDSettings.screenShake();
-		Camera.main.shake(magnitude, duration);
+		// Camera feedback is presentation-only. Real gameplay can execute through the
+		// headless QA scheduler without a renderer-owned main camera.
+		if (Camera.main != null) Camera.main.shake(magnitude, duration);
 	}
 
 	//returns insets for the common case of all on top/bottom and only blocking on left/right

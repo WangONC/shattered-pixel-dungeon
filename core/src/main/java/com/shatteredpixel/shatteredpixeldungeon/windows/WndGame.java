@@ -35,6 +35,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.watabou.noosa.Game;
+import com.watabou.utils.DeviceCompat;
 
 import java.io.IOException;
 
@@ -95,6 +96,30 @@ public class WndGame extends Window {
 				}
 			} );
 			curBtn.icon(Icons.get(Icons.RANKINGS));
+		}
+
+		// Formal player-facing overview for authored classes.
+		if (Dungeon.hero != null && Dungeon.hero.isAlive() && Dungeon.hero.ruleRuntime() != null) {
+			addButton(curBtn = new RedButton(Messages.get(WndGame.class, "class_overview")) {
+				@Override
+				protected void onClick() {
+					hide();
+					GameScene.show(new WndClassOverview(Dungeon.hero.ruleRuntime()));
+				}
+			});
+			curBtn.icon(Icons.TALENT.get());
+		}
+
+		// Development-only runtime lab. DeviceCompat is false in release distributions.
+		if (DeviceCompat.isDebug() && Dungeon.hero != null && Dungeon.hero.isAlive()) {
+			addButton(curBtn = new RedButton(Messages.get(WndGame.class, "dev_rule_lab")) {
+				@Override
+				protected void onClick() {
+					hide();
+					GameScene.show(new WndDevRuleLab());
+				}
+			});
+			curBtn.icon(Icons.TALENT.get());
 		}
 
 		// Main menu

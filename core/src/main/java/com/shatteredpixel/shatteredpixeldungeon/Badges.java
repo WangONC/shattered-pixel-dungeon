@@ -253,6 +253,13 @@ public class Badges {
 		local.clear();
 		loadGlobal();
 	}
+
+	/** Initializes isolated badge state for gameplay tests that intentionally have no platform save path. */
+	public static void resetForTesting() {
+		local = new HashSet<>();
+		global = new HashSet<>();
+		saveNeeded = false;
+	}
 	
 	public static final String BADGES_FILE	= "badges.dat";
 	private static final String BADGES		= "badges";

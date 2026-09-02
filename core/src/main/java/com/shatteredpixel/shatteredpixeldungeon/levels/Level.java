@@ -1011,7 +1011,7 @@ public abstract class Level implements Bundlable {
 			heap.drop(item);
 		}
 		
-		if (Dungeon.level != null && ShatteredPixelDungeon.scene() instanceof GameScene) {
+		if (Dungeon.level != null && GameScene.sceneIsActive()) {
 			pressCell( cell );
 		}
 		

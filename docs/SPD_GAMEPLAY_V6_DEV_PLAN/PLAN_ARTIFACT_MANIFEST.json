@@ -1,0 +1,90 @@
+{
+  "artifact": "SPD Gameplay Components v6 Development Plan",
+  "status": "FINAL_PLANNING",
+  "source_sha256": "b066e12c5cbef0ef15c35c1b36c2cfdacc43589b33c2921fc794ee9e6629e599",
+  "audit_sha256": "6da79a5fd3767070911a173a5db3340c0c43c9005e503383cd6858b98e26d65a",
+  "contract_sha256": "61f2e37f6cb527f788dbd87ceed3bab227c31b257ab7b731dfbba2c1d1021bd8",
+  "phase_count": 13,
+  "files": [
+    {
+      "path": "P00_baseline_legacy_freeze_CODEX_PROMPT.md",
+      "sha256": "03ed2b7507d788469a86afc9f3a8dca92ce29cc15c5f8ad93b04bf800b0c7b25",
+      "bytes": 6589
+    },
+    {
+      "path": "P01_identity_dependency_save_CODEX_PROMPT.md",
+      "sha256": "c3e9bc80760a64a1a2c4d4fa2c57390f0805148102924e83c7b0fef51e09b7ad",
+      "bytes": 6402
+    },
+    {
+      "path": "P02_builder_kernel_CODEX_PROMPT.md",
+      "sha256": "b9ed711464ea77a1863874467fdff910881ebd2c4a5cdf3ff8851360351e765b",
+      "bytes": 6144
+    },
+    {
+      "path": "P03_typed_skill_compiler_CODEX_PROMPT.md",
+      "sha256": "ef50bb88dff3df623f33221c0b6ae9ba64ce465d642a8530cdf906fa97f1a9d8",
+      "bytes": 6413
+    },
+    {
+      "path": "P04_core_effects_resource_hp_CODEX_PROMPT.md",
+      "sha256": "b8674dbb44405ac675a0eb1a9be66987fe88b895eb7856985654f0c17554e73f",
+      "bytes": 6629
+    },
+    {
+      "path": "P05_mark_mode_stable_refs_CODEX_PROMPT.md",
+      "sha256": "ba54ba4a7bdfb8b8b38966e93f3a2ab0d5c2c0c2efa2c69790e5d13f74899812",
+      "bytes": 5889
+    },
+    {
+      "path": "P06_payload_timing_attachment_CODEX_PROMPT.md",
+      "sha256": "9d05c9454fb92e467a4d3b5f4388a8bb368700bb78043a5f379efc114962a0b0",
+      "bytes": 6090
+    },
+    {
+      "path": "P07_entity_world_relation_CODEX_PROMPT.md",
+      "sha256": "c86f3891a5a2ec4451499435d0d29d6b16ceda7536e84d02e6e70aff6458ca39",
+      "bytes": 6707
+    },
+    {
+      "path": "P08_transfer_copy_capability_CODEX_PROMPT.md",
+      "sha256": "0003e783a43d8d10313a30346992d00dc15f020c55c8ab511ebca97c6bcc3d15",
+      "bytes": 5724
+    },
+    {
+      "path": "P09_constraints_vow_budget_CODEX_PROMPT.md",
+      "sha256": "d9e4bbbb905754db789ec67617c746fb3c1ca9cd4a958ced8959ee1e61dada51",
+      "bytes": 6229
+    },
+    {
+      "path": "P10_migration_formatter_localization_retire_legacy_CODEX_PROMPT.md",
+      "sha256": "db673d307e3195879d979c186013c3878991f519c0221f77312b70261d2d9dd7",
+      "bytes": 6353
+    },
+    {
+      "path": "P11_new_generic_primitives_CODEX_PROMPT.md",
+      "sha256": "200dc575222fe3046726849505224eed8698e4b4720e2a34174a0acfd484e8a6",
+      "bytes": 6491
+    },
+    {
+      "path": "P12_final_acceptance_CODEX_PROMPT.md",
+      "sha256": "116804b9660f8f919ac26ced05de0beea6fbd2f854f3ec236a9ab41461cd0098",
+      "bytes": 6445
+    },
+    {
+      "path": "PRO_INDEPENDENT_REVIEW_PROMPT_TEMPLATE.md",
+      "sha256": "f9a297003ccee6896fb9d564973d8a3ccb744cefba73f2716c65cce520f484da",
+      "bytes": 1945
+    },
+    {
+      "path": "README.md",
+      "sha256": "1dbd1785c2dd19e615abc8669559005b417d56576dd1e9ac324bc31644802718",
+      "bytes": 452
+    },
+    {
+      "path": "SPD_GAMEPLAY_COMPONENTS_V6_DEVELOPMENT_PLAN_FINAL.md",
+      "sha256": "975ee57b8c920a4f2e5d2b19cd4f70c7bd4fbc4509a23609fe7d46dd7755342f",
+      "bytes": 48740
+    }
+  ]
+}

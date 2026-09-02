@@ -276,6 +276,12 @@ public class ScrollOfTeleportation extends Scroll {
 	}
 
 	public static void appear( Char ch, int pos ) {
+		//Gameplay tests and server-side tools have no sprite tree. Movement remains the real Char path;
+		//only the animation below is omitted.
+		if (ch.sprite == null || ch.sprite.parent == null) {
+			ch.move(pos, false);
+			return;
+		}
 
 		ch.sprite.interruptMotion();
 

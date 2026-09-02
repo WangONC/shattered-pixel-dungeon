@@ -70,6 +70,7 @@ public class StatusPane extends Component {
 	private BitmapText level;
 
 	private BuffIndicator buffs;
+	private ClassResourceIndicator classResources;
 	private Compass compass;
 
 	private BusyIndicator busy;
@@ -170,6 +171,9 @@ public class StatusPane extends Component {
 		buffs = new BuffIndicator( Dungeon.hero, large );
 		add( buffs );
 
+		classResources = new ClassResourceIndicator(large, buffs);
+		add(classResources);
+
 		busy = new BusyIndicator();
 		add( busy );
 
@@ -219,6 +223,9 @@ public class StatusPane extends Component {
 
 			//little extra for 14th buff
 			buffs.setRect(x + 31, y, 142, 16);
+
+			//The readout follows the class-resource buff and uses the remaining top row.
+			classResources.setRect(x + 31, y, Math.max(0, width - 31), 16);
 
 			busy.x = x + bg.width + 1;
 			busy.y = y + bg.height - 9;
@@ -272,6 +279,10 @@ public class StatusPane extends Component {
 				buffs.rowHeightAdjusts = buffBarRowAdjusts;
 			}
 			buffs.setRect( x + heroPaneWidth + 1, y + 8, 55, 16 );
+
+			//The readout follows the class-resource buff instead of occupying the map row.
+			classResources.setRect(x + heroPaneWidth + 1, y + 8,
+					Math.max(0, width - heroPaneWidth - 1), 16);
 
 			busy.x = x + 1;
 			busy.y = y + 37;
@@ -392,6 +403,7 @@ public class StatusPane extends Component {
 		exp.alpha(value);
 		if (expText != null) expText.alpha(0.6f*value);
 		level.alpha(value);
+		classResources.alpha(value);
 		compass.alpha(value);
 		busy.alpha(value);
 		counter.alpha(value);

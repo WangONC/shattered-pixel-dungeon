@@ -1,0 +1,37 @@
+{
+  "schema": "ruleqa-scenario-1",
+  "id": "water_focus_wait_loop",
+  "seed": 10086,
+  "hero": {
+    "build": {
+      "name": "water_focus_wait_loop",
+      "resource": "FOCUS",
+      "law": "WATER_AFFINITY",
+      "activeCondition": "ALWAYS",
+      "activeTarget": "SELECTED_TARGET",
+      "activeEffect": "POISON",
+      "activeModifier": "NONE",
+      "reactionTrigger": "ON_WAIT",
+      "reactionCondition": "SELF_IN_WATER",
+      "reactionCondition2": "ALWAYS",
+      "reactionTarget": "SELF",
+      "reactionEffect": "SHIELD",
+      "reactionModifier": "NONE",
+      "restriction": "NONE"
+    },
+    "hp": 100,
+    "maxHp": 100
+  },
+  "level": {
+    "type": "fixed_test_level",
+    "width": 7,
+    "height": 7,
+    "heroCell": 24,
+    "waterCells": [24]
+  },
+  "actions": [
+    {"type": "WAIT", "repeat": 500}
+  ],
+  "expectedFindings": ["UNBOUNDED_POWER_LOOP"],
+  "staticOnly": false
+}

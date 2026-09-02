@@ -814,9 +814,22 @@ public abstract class Char extends Actor {
 		if (!isAlive() || dmg < 0) {
 			return;
 		}
+		int qaRequested = dmg;
+		int qaHpBefore = HP;
+		int qaShieldBefore = shielding();
+		int qaTemporaryBefore = com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.temporaryHp(this);
+
+		dmg = com.shatteredpixel.shatteredpixeldungeon.rules.RuleDefenseRuntime.beforeDamage(this, dmg, src);
+		if (dmg <= 0) {
+			com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.record(this, src, qaRequested,
+					qaHpBefore, qaShieldBefore, qaTemporaryBefore);
+			return;
+		}
 
 		if(isInvulnerable(src.getClass())){
 			sprite.showStatus(CharSprite.POSITIVE, Messages.get(this, "invulnerable"));
+			com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.record(this, src, qaRequested,
+					qaHpBefore, qaShieldBefore, qaTemporaryBefore);
 			return;
 		}
 
@@ -902,6 +915,8 @@ public abstract class Char extends Actor {
 				b.set(dmg, Sickle.HarvestBleedTracker.class);
 				b.attachTo(this);
 				sprite.showStatus(CharSprite.WARNING, Messages.titleCase(b.name()) + " " + (int)b.level());
+				com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.record(this, src, qaRequested,
+						qaHpBefore, qaShieldBefore, qaTemporaryBefore);
 				return;
 			}
 		}
@@ -1031,6 +1046,8 @@ public abstract class Char extends Actor {
 		} else if (HP == 0 && buff(DeathMark.DeathMarkTracker.class) != null){
 			DeathMark.processFearTheReaper(this);
 		}
+		com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.record(this, src, qaRequested,
+				qaHpBefore, qaShieldBefore, qaTemporaryBefore);
 	}
 
 	//these are misc. sources of physical damage which do not apply armor, they get a different icon

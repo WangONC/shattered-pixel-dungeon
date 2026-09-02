@@ -42,11 +42,13 @@ import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Notes;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.rules.RuleHooks;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
+import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
 import com.watabou.utils.Bundlable;
@@ -155,10 +157,17 @@ public class Item implements Bundlable {
 	}
 	
 	public void execute( Hero hero, String action ) {
+		if (this instanceof KindOfWeapon && !AC_DROP.equals(action)
+				&& !EquipableItem.AC_UNEQUIP.equals(action)
+				&& RuleHooks.ordinaryWeaponsRestricted(hero)) {
+			GLog.w(Messages.get(this, "rule_weapon_restricted"));
+			return;
+		}
 
 		GameScene.cancel();
 		curUser = hero;
 		curItem = this;
+		if (!AC_DROP.equals(action)) RuleHooks.onItemUse(hero, this);
 		
 		if (action.equals( AC_DROP )) {
 			

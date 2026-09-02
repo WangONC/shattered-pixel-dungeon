@@ -134,9 +134,11 @@ public class HighGrass {
 
 				if (Random.Float() < lootChance) {
 					if (Random.Float() < PetrifiedSeed.stoneInsteadOfSeedChance()) {
-						level.drop(Generator.randomUsingDefaults(Generator.Category.STONE), pos).sprite.drop();
+						com.shatteredpixel.shatteredpixeldungeon.items.Heap heap=level.drop(Generator.randomUsingDefaults(Generator.Category.STONE), pos);
+						if(heap.sprite!=null)heap.sprite.drop();
 					} else {
-						level.drop(Generator.random(Generator.Category.SEED), pos).sprite.drop();
+						com.shatteredpixel.shatteredpixeldungeon.items.Heap heap=level.drop(Generator.random(Generator.Category.SEED), pos);
+						if(heap.sprite!=null)heap.sprite.drop();
 					}
 				}
 				
@@ -149,7 +151,8 @@ public class HighGrass {
 				}
 
 				if (Random.Float() < lootChance) {
-					level.drop(new Dewdrop(), pos).sprite.drop();
+					com.shatteredpixel.shatteredpixeldungeon.items.Heap heap=level.drop(new Dewdrop(), pos);
+					if(heap.sprite!=null)heap.sprite.drop();
 				}
 			}
 
@@ -161,7 +164,7 @@ public class HighGrass {
 		
 		freezeTrample = false;
 		
-		if (ShatteredPixelDungeon.scene() instanceof GameScene) {
+		if (GameScene.sceneIsActive()) {
 			GameScene.updateMap(pos);
 			
 			CellEmitter.get(pos).burst(LeafParticle.LEVEL_SPECIFIC, 4);

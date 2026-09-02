@@ -90,6 +90,7 @@ import com.shatteredpixel.shatteredpixeldungeon.tiles.RaisedTerrainTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.TerrainFeaturesTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.WallBlockingTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ActionIndicator;
+import com.shatteredpixel.shatteredpixeldungeon.ui.ClassActionBar;
 import com.shatteredpixel.shatteredpixeldungeon.ui.AttackIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Banner;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BossHealthBar;
@@ -201,6 +202,7 @@ public class GameScene extends PixelScene {
 	private static boolean invVisible = true;
 
 	private Toolbar toolbar;
+	private ClassActionBar classActions;
 	private Toast prompt;
 
 	private AttackIndicator attack;
@@ -519,6 +521,11 @@ public class GameScene extends PixelScene {
 		} else {
 			toolbar.setRect( insets.left, uiCamera.height - toolbar.height() - insets.bottom, uiCamera.width - insets.right, toolbar.height() );
 		}
+
+		// Active custom skills and class operations participate in the normal edge-tag stack.
+		classActions = new ClassActionBar();
+		classActions.camera = uiCamera;
+		add(classActions);
 
 		if (insets.bottom > 0){
 			SkinnedBlock bar = new SkinnedBlock(uiCamera.width, insets.bottom, TextureCache.createSolid(0x88000000));
@@ -969,19 +976,23 @@ public class GameScene extends PixelScene {
 		insets = insets.scale(1f / uiCamera.zoom);
 
 		boolean tagsOnLeft = SPDSettings.flipTags();
-		float tagWidth = Tag.SIZE + (tagsOnLeft ? insets.left : insets.right);
+		float sideInset = tagsOnLeft ? insets.left : insets.right;
+		float tagWidth = Tag.SIZE + sideInset;
 		float tagLeft = tagsOnLeft ? 0 : uiCamera.width - tagWidth;
+		float classTagWidth = scene.classActions != null && scene.classActions.hasVisibleActions()
+				? ClassActionBar.TAG_WIDTH + sideInset : tagWidth;
+		float occupiedSideWidth = Math.max(tagWidth, classTagWidth);
 
 		float y = SPDSettings.interfaceSize() == 0 ? scene.toolbar.top()-2 : scene.status.top()-2;
 		if (SPDSettings.interfaceSize() == 0){
 			if (tagsOnLeft) {
-				scene.log.setRect(tagWidth, y, uiCamera.width - tagWidth - insets.right, 0);
+				scene.log.setRect(occupiedSideWidth, y, uiCamera.width - occupiedSideWidth - insets.right, 0);
 			} else {
-				scene.log.setRect(insets.left, y, uiCamera.width - tagWidth - insets.left, 0);
+				scene.log.setRect(insets.left, y, uiCamera.width - occupiedSideWidth - insets.left, 0);
 			}
 		} else {
 			if (tagsOnLeft) {
-				scene.log.setRect(tagWidth, y, 160 - tagWidth, 0);
+				scene.log.setRect(occupiedSideWidth, y, 160 - occupiedSideWidth, 0);
 			} else {
 				scene.log.setRect(insets.left, y, 160 - insets.left, 0);
 			}
@@ -1013,6 +1024,12 @@ public class GameScene extends PixelScene {
 		if (scene.tagResume) {
 			scene.resume.setRect( tagLeft, pos - Tag.SIZE, tagWidth, Tag.SIZE );
 			scene.resume.flip(tagsOnLeft);
+			pos = scene.resume.top();
+		}
+
+		if (scene.classActions != null && scene.classActions.hasVisibleActions()) {
+			float classTagLeft = tagsOnLeft ? 0 : uiCamera.width - classTagWidth;
+			scene.classActions.layoutTags(classTagLeft, pos, classTagWidth, tagsOnLeft);
 		}
 	}
 	
@@ -1655,7 +1672,14 @@ public class GameScene extends PixelScene {
 	}
 	
 	public static void resetKeyHold(){
-		cellSelector.resetKeyHold();
+		// Gameplay interruption is also used by the true headless harness. In that mode the
+		// renderer-owned selector is intentionally absent, while the Hero/Buff path is real.
+		if (cellSelector != null) cellSelector.resetKeyHold();
+	}
+
+	/** True only when renderer-owned scene state exists; gameplay QA deliberately has none. */
+	public static boolean sceneIsActive() {
+		return scene != null;
 	}
 
 	public static void examineCell( Integer cell ) {

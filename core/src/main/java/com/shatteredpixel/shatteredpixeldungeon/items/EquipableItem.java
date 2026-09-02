@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ShadowParticle;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Document;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.rules.RuleHooks;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
@@ -68,6 +69,11 @@ public abstract class EquipableItem extends Item {
 
 	@Override
 	public void execute( Hero hero, String action ) {
+		if (action.equals(AC_EQUIP) && this instanceof KindOfWeapon
+				&& RuleHooks.ordinaryWeaponsRestricted(hero)) {
+			GLog.w(Messages.get(this, "rule_weapon_restricted"));
+			return;
+		}
 
 		super.execute( hero, action );
 

@@ -26,6 +26,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleResourceBuff;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
@@ -38,6 +39,7 @@ import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.tweeners.AlphaTweener;
 import com.watabou.noosa.ui.Component;
 import com.watabou.utils.GameMath;
+import com.watabou.utils.PointF;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -238,7 +240,8 @@ public class BuffIndicator extends Component {
 		int pos = 0;
 		float lastIconRight = 0;
 		int total = 0;
-		for (BuffButton icon : buffButtons.values()){
+		ArrayList<BuffButton> orderedButtons = orderedButtons();
+		for (BuffButton icon : orderedButtons){
 			if (total >= maxBuffs){
 				icon.visible = false;
 				continue;
@@ -274,7 +277,7 @@ public class BuffIndicator extends Component {
 			ArrayList<BuffButton> buttons = new ArrayList<>();
 			float lastRowY = PixelScene.align(y + rowTop);
 			int i = 1;
-			for (BuffButton button : buffButtons.values()){
+			for (BuffButton button : orderedButtons){
 				if (i > maxBuffs){
 					button.visible = false;
 					buffsHidden = true;
@@ -306,6 +309,33 @@ public class BuffIndicator extends Component {
 		if (this == heroInstance && buffButtons.size() >= 10){
 			Badges.validateManyBuffs();
 		}
+	}
+
+	/**
+	 * Keeps the class-resource buff at the end of the normal buff run so the
+	 * independent resource readout can sit directly beside it without covering
+	 * another buff icon.
+	 */
+	private ArrayList<BuffButton> orderedButtons() {
+		ArrayList<BuffButton> ordered = new ArrayList<>();
+		BuffButton resource = null;
+		for (BuffButton button : buffButtons.values()) {
+			if (button.buff instanceof RuleResourceBuff) resource = button;
+			else ordered.add(button);
+		}
+		if (resource != null) ordered.add(resource);
+		return ordered;
+	}
+
+	/** Screen-space point at the right edge and vertical center of the resource icon. */
+	public PointF resourceReadoutAnchor() {
+		for (BuffButton button : buffButtons.values()) {
+			if (button.buff instanceof RuleResourceBuff && button.visible) {
+				return new PointF(button.icon.x + button.icon.width() * button.icon.scale.x,
+						button.icon.y + button.icon.height() * button.icon.scale.y / 2f);
+			}
+		}
+		return null;
 	}
 
 	public boolean allBuffsVisible(){

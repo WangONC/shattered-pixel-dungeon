@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.rules.CustomClassConfig;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.FileUtils;
 
@@ -158,6 +159,9 @@ public class GamesInProgress {
 		info.shld = Dungeon.hero.shielding();
 		info.heroClass = Dungeon.hero.heroClass;
 		info.subClass = Dungeon.hero.subClass;
+		info.customClassName = Dungeon.hero.ruleRuntime() == null ? "" : Dungeon.hero.ruleRuntime().customName();
+		info.customClassConfig = Dungeon.hero.ruleRuntime() == null
+				? null : Dungeon.hero.ruleRuntime().presentationConfig();
 		info.armorTier = Dungeon.hero.tier();
 		
 		info.goldCollected = Statistics.goldCollected;
@@ -196,6 +200,9 @@ public class GamesInProgress {
 		public int shld;
 		public HeroClass heroClass;
 		public HeroSubClass subClass;
+		public String customClassName = "";
+		/** Transient preview data reconstructed from the existing RuleRuntime bundle. */
+		public CustomClassConfig customClassConfig;
 		public int armorTier;
 		
 		public int goldCollected;

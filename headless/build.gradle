@@ -1,0 +1,36 @@
+apply plugin: 'java'
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+java.sourceCompatibility = java.targetCompatibility = appJavaCompatibility
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+}
+
+processResources {
+    from new File(project(':core').projectDir, '/src/main/assets')
+}
+
+def registerQaTask = { String taskName, String mode ->
+    tasks.register(taskName, JavaExec) {
+        dependsOn classes
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'com.shatteredpixel.shatteredpixeldungeon.qa.RuleQaCli'
+        systemProperty 'ruleqa.mode', mode
+        systemProperty 'ruleqa.projectDir', rootProject.projectDir.absolutePath
+        workingDir new File(project(':core').projectDir, '/src/main/assets')
+    }
+}
+
+registerQaTask('headlessQa', 'headless')
+registerQaTask('ruleFuzz', 'fuzz')
+registerQaTask('buildIntegrityQa', 'static')
+registerQaTask('classArchetypeStressQa', 'archetype')
+registerQaTask('builderVocabularyExposureQa', 'builder-vocabulary')
+registerQaTask('lawTraitVocabularyQa', 'law-trait-vocabulary')
+registerQaTask('playerBuildEquivalenceQa', 'player-build-equivalence')
+registerQaTask('gameplayComponentCoverageQa', 'gameplay-component-coverage')
+registerQaTask('playerArchetypeReconstructionQa', 'player-archetype-reconstruction')
+registerQaTask('playerClassCoreQa', 'player-class-core')

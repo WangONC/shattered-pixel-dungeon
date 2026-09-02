@@ -37,6 +37,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vulnerable;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Weakness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.rules.RuleHooks;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 
@@ -60,11 +61,20 @@ public class PotionOfHealing extends Potion {
 			pharmacophobiaProc(Dungeon.hero);
 		} else {
 			//starts out healing 30 hp, equalizes with hero health total at level 11
-			Healing healing = Buff.affect(ch, Healing.class);
-			healing.setHeal((int) (0.8f * ch.HT + 14), 0.25f, 0);
-			healing.applyVialEffect();
+			float multiplier = ch instanceof Hero ? RuleHooks.healingPotionMultiplier((Hero) ch) : 1f;
+			int amount = Math.round((0.8f * ch.HT + 14) * multiplier);
+			boolean converted = ch instanceof Hero && RuleHooks.healingPotionBecomesShield((Hero) ch) && amount > 0;
+			if (converted) {
+				RuleHooks.applyHealing((Hero) ch, amount);
+			} else if (amount > 0) {
+				Healing healing = Buff.affect(ch, Healing.class);
+				healing.setHeal(amount, 0.25f, 0);
+				healing.applyVialEffect();
+			}
 			if (ch == Dungeon.hero){
-				GLog.p( Messages.get(PotionOfHealing.class, "heal") );
+				if (amount <= 0) GLog.w(Messages.get(PotionOfHealing.class, "rule_no_heal"));
+				else if (converted) GLog.p(Messages.get(PotionOfHealing.class, "rule_shield"));
+				else GLog.p( Messages.get(PotionOfHealing.class, "heal") );
 			}
 		}
 	}

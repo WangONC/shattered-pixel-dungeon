@@ -161,6 +161,8 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ShadowCaster;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.AlchemyScene;
+import com.shatteredpixel.shatteredpixeldungeon.rules.RuleHooks;
+import com.shatteredpixel.shatteredpixeldungeon.rules.RuleRuntime;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -233,6 +235,9 @@ public class Hero extends Char {
 	public int exp = 0;
 	
 	public int HTBoost = 0;
+
+	//Null for vanilla heroes. Configuration and mutable state are stored together in the Hero bundle.
+	private RuleRuntime ruleRuntime;
 	
 	private ArrayList<Mob> visibleEnemies;
 
@@ -295,6 +300,7 @@ public class Hero extends Char {
 	private static final String LEVEL		= "lvl";
 	private static final String EXPERIENCE	= "exp";
 	private static final String HTBOOST     = "htboost";
+	public static final String RULE_RUNTIME = "rule_runtime";
 	
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -315,6 +321,12 @@ public class Hero extends Char {
 		bundle.put( EXPERIENCE, exp );
 		
 		bundle.put( HTBOOST, HTBoost );
+
+		if (ruleRuntime != null) {
+			Bundle runtimeBundle = new Bundle();
+			ruleRuntime.storeInBundle(runtimeBundle);
+			bundle.put(RULE_RUNTIME, runtimeBundle);
+		}
 
 		belongings.storeInBundle( bundle );
 	}
@@ -339,6 +351,13 @@ public class Hero extends Char {
 		
 		STR = bundle.getInt( STRENGTH );
 
+		if (bundle.contains(RULE_RUNTIME)) {
+			ruleRuntime = new RuleRuntime();
+			ruleRuntime.restoreFromBundle(bundle.getBundle(RULE_RUNTIME));
+		} else {
+			ruleRuntime = null;
+		}
+
 		belongings.restoreFromBundle( bundle );
 	}
 	
@@ -351,6 +370,8 @@ public class Hero extends Char {
 		info.shld = bundle.getInt( Char.TAG_SHLD );
 		info.heroClass = bundle.getEnum( CLASS, HeroClass.class );
 		info.subClass = bundle.getEnum( SUBCLASS, HeroSubClass.class );
+		info.customClassConfig = RuleRuntime.previewConfig(bundle);
+		info.customClassName = info.customClassConfig == null ? "" : info.customClassConfig.name;
 		Belongings.preview( info, bundle );
 	}
 
@@ -410,7 +431,16 @@ public class Hero extends Char {
 	}
 	
 	public String className() {
+		if (ruleRuntime != null) return ruleRuntime.customName();
 		return subClass == null || subClass == HeroSubClass.NONE ? heroClass.title() : subClass.title();
+	}
+
+	public RuleRuntime ruleRuntime() {
+		return ruleRuntime;
+	}
+
+	public void setRuleRuntime(RuleRuntime runtime) {
+		this.ruleRuntime = runtime;
 	}
 
 	@Override
@@ -489,7 +519,10 @@ public class Hero extends Char {
 	
 	@Override
 	public boolean attack(Char enemy, float dmgMulti, float dmgBonus, float accMulti) {
+		RuleHooks.onAttack(this, enemy);
+		boolean melee = !(belongings.attackingWeapon() instanceof MissileWeapon);
 		boolean result = super.attack(enemy, dmgMulti, dmgBonus, accMulti);
+		if (result) RuleHooks.onHit(this, enemy, melee);
 		if (!(belongings.attackingWeapon() instanceof MissileWeapon)){
 			if (buff(Talent.PreciseAssaultTracker.class) != null){
 				buff(Talent.PreciseAssaultTracker.class).detach();
@@ -717,10 +750,14 @@ public class Hero extends Char {
 		
 		Momentum momentum = buff(Momentum.class);
 		if (momentum != null){
-			((HeroSprite)sprite).sprint( momentum.freerunning() ? 1.5f : 1f );
+			if (sprite instanceof HeroSprite) {
+				((HeroSprite)sprite).sprint( momentum.freerunning() ? 1.5f : 1f );
+			}
 			speed *= momentum.speedMultiplier();
 		} else {
-			((HeroSprite)sprite).sprint( 1f );
+			if (sprite instanceof HeroSprite) {
+				((HeroSprite)sprite).sprint( 1f );
+			}
 		}
 
 		NaturesPower.naturesPowerTracker natStrength = buff(NaturesPower.naturesPowerTracker.class);
@@ -829,6 +866,7 @@ public class Hero extends Char {
 	
 	@Override
 	public boolean act() {
+		RuleHooks.onTurnStart(this);
 		
 		//calls to dungeon.observe will also update hero's local FOV.
 		fieldOfView = Dungeon.level.heroFOV;
@@ -863,6 +901,7 @@ public class Hero extends Char {
 		if (curAction == null) {
 			
 			if (resting) {
+				RuleHooks.onWait(this);
 				spendConstant( TIME_TO_REST );
 				next();
 			} else {
@@ -1454,6 +1493,7 @@ public class Hero extends Char {
 	}
 	
 	public void rest( boolean fullRest ) {
+		RuleHooks.onWait(this);
 		spendAndNextConstant( TIME_TO_REST );
 		if (hasTalent(Talent.HOLD_FAST)){
 			Buff.affect(this, HoldFast.class).pos = pos;
@@ -1642,6 +1682,7 @@ public class Hero extends Char {
 		int effectiveDamage = preHP - postHP;
 
 		if (effectiveDamage <= 0) return;
+		RuleHooks.onDamaged(this, src, effectiveDamage);
 
 		if (buff(Challenge.DuelParticipant.class) != null){
 			buff(Challenge.DuelParticipant.class).addDamage(effectiveDamage);
@@ -2085,6 +2126,7 @@ public class Hero extends Char {
 		}
 
 		boolean added = super.add( buff );
+		if (added) RuleHooks.onStatusApplied(this, buff);
 
 		if (sprite != null && added) {
 			String msg = buff.heroMessage();
@@ -2196,6 +2238,9 @@ public class Hero extends Char {
 	}
 	
 	public static void reallyDie( Object cause ) {
+		// Combat/death state remains real in headless QA; rankings, bones, audio and
+		// game-over scenes are profile/presentation side effects with no renderer slot.
+		if (com.shatteredpixel.shatteredpixeldungeon.qa.QaCombatMetrics.active()) return;
 		
 		int length = Dungeon.level.length();
 		int[] map = Dungeon.level.map;
@@ -2284,9 +2329,11 @@ public class Hero extends Char {
 
 	@Override
 	public void move(int step, boolean travelling) {
+		int oldPos = pos;
 		boolean wasHighGrass = Dungeon.level.map[step] == Terrain.HIGH_GRASS;
 
 		super.move( step, travelling);
+		RuleHooks.onMove(this, oldPos, pos);
 		
 		if (!flying && travelling) {
 			if (Dungeon.level.water[pos]) {
@@ -2320,7 +2367,9 @@ public class Hero extends Char {
 		boolean wasEnemy = attackTarget.alignment == Alignment.ENEMY
 				|| (attackTarget instanceof Mimic && attackTarget.alignment == Alignment.NEUTRAL);
 
-		boolean hit = attack(attackTarget);
+		// This is the ordinary click-to-attack path. Thrown weapons (shoot), weapon abilities,
+		// Skill Runtime and ClassOperation never pass through this multiplier.
+		boolean hit = performBasicAttack(attackTarget);
 		
 		Invisibility.dispel();
 		spend( attackDelay() );
@@ -2337,6 +2386,15 @@ public class Hero extends Char {
 		attackTarget = null;
 
 		super.onAttackComplete();
+	}
+
+	/**
+	 * The hero's ordinary weapon attack only.  Callers for thrown weapons, weapon abilities,
+	 * authored skills, and other special attacks intentionally use their existing attack paths.
+	 */
+	public boolean performBasicAttack(Char target) {
+		float multiplier = ruleRuntime == null ? 1f : ruleRuntime.basicAttackDamageMultiplier();
+		return attack(target, multiplier, 0f, 1f);
 	}
 	
 	@Override

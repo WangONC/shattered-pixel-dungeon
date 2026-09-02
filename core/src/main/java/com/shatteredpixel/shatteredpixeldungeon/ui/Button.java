@@ -22,6 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.ui;
 
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.watabou.input.ControllerHandler;
 import com.watabou.input.GameAction;
 import com.watabou.input.KeyBindings;
@@ -44,10 +45,11 @@ public class Button extends Component {
 	protected static Button pressedButton;
 	protected float pressTime;
 	protected boolean clickReady;
+	private boolean passScrollGestures;
 
 	@Override
 	protected void createChildren() {
-		hotArea = new PointerArea( 0, 0, 0, 0 ) {
+			hotArea = new PointerArea( 0, 0, 0, 0 ) {
 			@Override
 			protected void onPointerDown( PointerEvent event ) {
 				pressedButton = Button.this;
@@ -64,6 +66,16 @@ public class Button extends Component {
 					clickReady = false;
 				}
 				Button.this.onPointerUp();
+			}
+			@Override
+			protected void onDrag(PointerEvent event) {
+				if (passScrollGestures && TouchScrollGesture.isDrag(event.start, event.current,
+						PixelScene.defaultZoom * 8)) {
+					// The containing ScrollPane owns this gesture now. Cancelling here prevents
+					// the eventual UP from selecting a row after a finger drag.
+					clickReady = false;
+					if (pressedButton == Button.this) pressedButton = null;
+				}
 			}
 			@Override
 			protected void onClick( PointerEvent event ) {
@@ -220,6 +232,12 @@ public class Button extends Component {
 
 	public void givePointerPriority(){
 		hotArea.givePointerPriority();
+	}
+
+	/** Allows a containing ScrollPane to see drags which start directly on this button. */
+	public void passScrollGestures() {
+		passScrollGestures = true;
+		hotArea.blockLevel = PointerArea.NEVER_BLOCK;
 	}
 	
 }

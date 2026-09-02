@@ -55,7 +55,7 @@ public class Pushing extends Actor {
 		this.callback = null;
 
 		if (ch == Dungeon.hero){
-			Camera.main.panFollow(ch.sprite, 20f);
+			if (Camera.main != null) Camera.main.panFollow(ch.sprite, 20f);
 		}
 	}
 
@@ -76,6 +76,9 @@ public class Pushing extends Actor {
 				new Effect();
 			}
 		} else {
+			//The callback contains the actual knockback movement. In a gameplay-only process there is
+			//no animation parent, so complete that gameplay immediately.
+			if (callback != null) callback.call();
 			return true;
 		}
 

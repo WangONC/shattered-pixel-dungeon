@@ -118,6 +118,13 @@ public class WandOfBlastWave extends DamageWand {
 
 	public static void throwChar(final Char ch, final Ballistica trajectory, int power,
 	                             boolean closeDoors, boolean collideDmg, Object cause){
+		throwChar(ch, trajectory, power, closeDoors, collideDmg, cause, null);
+	}
+
+	/** Optional completion callback runs only after the character's position really changed. */
+	public static void throwChar(final Char ch, final Ballistica trajectory, int power,
+	                             boolean closeDoors, boolean collideDmg, Object cause,
+	                             final Callback movedCallback){
 		if (ch.properties().contains(Char.Property.BOSS)) {
 			power = (power+1)/2;
 		}
@@ -187,6 +194,7 @@ public class WandOfBlastWave extends DamageWand {
 				} else if (Dungeon.level.heroFOV[initialpos] != Dungeon.level.heroFOV[newPos]){
 					Dungeon.observe();
 				}
+				if (movedCallback != null) movedCallback.call();
 			}
 		}));
 	}

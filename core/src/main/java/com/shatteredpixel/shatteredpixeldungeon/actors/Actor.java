@@ -324,6 +324,56 @@ public abstract class Actor implements Bundlable {
 
 		} while (keepActorThreadAlive);
 	}
+
+	/**
+	 * Synchronously processes the real actor queue until {@code turnOwner} is next. This is used by
+	 * deterministic gameplay tools which do not run GameScene's actor thread. Actor priorities,
+	 * clocks, Mob AI, Buffs, Blobs, and other Actor implementations are unchanged.
+	 */
+	public static int processUntilTurn(Actor turnOwner, int maxActors) {
+		int processed = 0;
+		while (processed < maxActors) {
+			// A dead Hero is no longer scheduled for input. Headless callers still need a
+			// deterministic terminal condition instead of processing every remaining Actor.
+			if (turnOwner instanceof Char && !((Char) turnOwner).isAlive()) {
+				current = null;
+				return processed;
+			}
+			Actor selected = null;
+			float earliest = Float.MAX_VALUE;
+			synchronized (Actor.class) {
+				for (Actor actor : all) {
+					if (actor.time < earliest || actor.time == earliest
+							&& (selected == null || actor.actPriority > selected.actPriority
+							|| actor.actPriority == selected.actPriority && actor.id() < selected.id())) {
+						earliest = actor.time;
+						selected = actor;
+					}
+				}
+			}
+			if (selected == null) {
+				current = null;
+				return processed;
+			}
+			if (selected == turnOwner) {
+				//Match the formal scheduler's clock at the point where it yields for Hero input.
+				now = selected.time;
+				current = null;
+				return processed;
+			}
+			current = selected;
+			now = selected.time;
+			boolean complete = selected.act();
+			processed++;
+			if (!complete && current == selected) {
+				current = null;
+				throw new IllegalStateException("actor requires asynchronous presentation: "
+						+ selected.getClass().getName());
+			}
+			current = null;
+		}
+		throw new IllegalStateException("actor processing limit exceeded: " + maxActors);
+	}
 	
 	public static void add( Actor actor ) {
 		add( actor, now );

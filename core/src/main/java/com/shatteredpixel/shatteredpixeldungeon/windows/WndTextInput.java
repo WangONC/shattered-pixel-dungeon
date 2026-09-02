@@ -22,6 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.windows;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
@@ -216,6 +217,33 @@ public class WndTextInput extends Window {
 		textBox.setRect(MARGIN, textBox.top(), textBoxWidth, inputHeight);
 
 		PointerEvent.clearKeyboardThisPress = false;
+
+		// Noosa's character-by-character TextInput predates modern composing IMEs. On Android
+		// it receives intermediate Latin keystrokes instead of the committed Chinese text on
+		// several keyboards. The platform text dialog owns IME composition and returns only the
+		// committed value; desktop and hardware-keyboard behavior remain unchanged.
+		if (DeviceCompat.isAndroid()) {
+			Gdx.app.postRunnable(new Runnable() {
+				@Override public void run() {
+					Game.platform.setOnscreenKeyboardVisible(false, false);
+					Gdx.input.getTextInput(new Input.TextInputListener() {
+						@Override public void input(String text) {
+							String value = text == null ? "" : text;
+							if (value.length() > maxLength) value = value.substring(0, maxLength);
+							textBox.setText(value);
+							onSelect(true, value);
+							hide();
+						}
+
+						@Override public void canceled() {
+							onSelect(false, textBox.getText());
+							hide();
+						}
+					}, title == null ? "" : title, initialValue == null ? "" : initialValue,
+						body == null ? "" : body);
+				}
+			});
+		}
 
 	}
 

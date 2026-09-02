@@ -32,6 +32,8 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.rules.CustomClassSummaryFormatter;
+import com.shatteredpixel.shatteredpixeldungeon.rules.CustomClassConfig;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ActionIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ExitButton;
@@ -44,6 +46,8 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndChallenges;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndCreateClass;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndClassOverview;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndHeroInfo;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndKeyBindings;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
@@ -91,6 +95,9 @@ public class HeroSelectScene extends PixelScene {
 	private IconButton btnOptions;
 	private GameOptions optionsPane;
 	private IconButton btnExit;
+	private CreateClassBtn createClassBtn;
+	private boolean customClassSelected;
+	private CustomClassConfig selectedCustomConfig;
 
 	private RectF insets;
 
@@ -151,6 +158,10 @@ public class HeroSelectScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				super.onClick();
+				if (customClassSelected) {
+					WndCreateClass.show(selectedCustomConfig);
+					return;
+				}
 
 				if (GamesInProgress.selectedClass == null) return;
 
@@ -173,6 +184,12 @@ public class HeroSelectScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				super.onClick();
+				if (customClassSelected && selectedCustomConfig != null) {
+					Window info = new WndClassOverview(selectedCustomConfig);
+					if (landscape()) info.offset((int)(w / 6), 0);
+					ShatteredPixelDungeon.scene().addToFront(info);
+					return;
+				}
 				HeroClass cls = GamesInProgress.selectedClass;
 				if (cls != null) {
 					Window info = new WndHeroInfo(GamesInProgress.selectedClass);
@@ -197,6 +214,10 @@ public class HeroSelectScene extends PixelScene {
 			add(button);
 			heroBtns.add(button);
 		}
+
+		createClassBtn = new CreateClassBtn();
+		add(createClassBtn);
+		heroBtns.add(createClassBtn);
 
 		optionsPane = new GameOptions();
 		optionsPane.visible = optionsPane.active = false;
@@ -325,7 +346,8 @@ public class HeroSelectScene extends PixelScene {
 		} else {
 			background.visible = false;
 
-			int btnWidth = HeroBtn.MIN_WIDTH;
+			//The icon-only create-class entry adds a seventh cell; keep all cells inside narrow layouts.
+			int btnWidth = Math.min(HeroBtn.MIN_WIDTH, Math.max(16, (int)(w / heroBtns.size())));
 
 			float curX = insets.left + (w - btnWidth * heroBtns.size()) / 2f;
 			if (curX > 0) {
@@ -412,6 +434,9 @@ public class HeroSelectScene extends PixelScene {
 	}
 
 	private void setSelectedHero(HeroClass cl){
+		customClassSelected = false;
+		selectedCustomConfig = null;
+		CustomClassConfig.clearPending();
 		GamesInProgress.selectedClass = cl;
 		GamesInProgress.randomizedClass = false;
 
@@ -477,6 +502,89 @@ public class HeroSelectScene extends PixelScene {
 		}
 
 		updateOptionsColor();
+	}
+
+	private void setSelectedCustomClass(){
+		customClassSelected = true;
+		selectedCustomConfig = latestCustomClassConfig();
+		CustomClassConfig.clearPending();
+		GamesInProgress.randomizedClass = false;
+
+		background.texture(TextureCache.createSolid(0xFF2d2f31));
+		background.frame(0, 0, 800, 450);
+		background.visible = true;
+		background.resetColor();
+
+		float leftPortion = Math.max(100, (Camera.main.width - insets.left - insets.right)/3f);
+		String name = customClassTitle(selectedCustomConfig);
+		String desc = customClassDescription(selectedCustomConfig);
+
+		if (landscape()) {
+			heroName.text(Messages.titleCase(name));
+			heroName.hardlight(Window.TITLE_COLOR);
+			heroName.setPos(insets.left + (leftPortion - heroName.width() - 20)/2f, heroName.top());
+			align(heroName);
+
+			heroDesc.text(desc);
+			heroDesc.maxWidth(80);
+			heroDesc.setPos(insets.left +(leftPortion - heroDesc.width())/2f, heroName.bottom() + 5);
+			align(heroDesc);
+			while(startBtn.top() < heroDesc.bottom()){
+				heroDesc.maxWidth(heroDesc.maxWidth()+10);
+				heroDesc.setPos(Math.max(insets.left, (leftPortion - heroDesc.width())/2f), heroName.bottom() + 5);
+				align(heroDesc);
+			}
+
+			btnFade.visible = btnFade.active = true;
+			startBtn.text(Messages.titleCase(Messages.get(HeroSelectScene.class,
+					selectedCustomConfig == null ? "custom_class_start" : "custom_class_reconfigure")));
+			startBtn.setSize(startBtn.reqWidth()+8, 21);
+			startBtn.setPos(insets.left + (leftPortion - startBtn.width())/2f, startBtn.top());
+			align(startBtn);
+			startBtn.visible = startBtn.active = true;
+			infoButton.visible = infoButton.active = selectedCustomConfig != null;
+			if (selectedCustomConfig != null) {
+				infoButton.setPos(heroName.right(), heroName.top() + (heroName.height() - infoButton.height())/2f);
+				align(infoButton);
+			}
+			btnOptions.visible = btnOptions.active = !SPDSettings.intro();
+		} else {
+			title.visible = false;
+			startBtn.text(Messages.titleCase(name));
+			startBtn.setSize(startBtn.reqWidth() + 8, 21);
+			startBtn.setPos((Camera.main.width - startBtn.width())/2f,
+					(Camera.main.height - insets.bottom - HeroBtn.HEIGHT + 2 - startBtn.height()));
+			PixelScene.align(startBtn);
+			startBtn.visible = startBtn.active = true;
+			infoButton.visible = infoButton.active = selectedCustomConfig != null;
+			if (selectedCustomConfig != null) infoButton.setPos(startBtn.right(), startBtn.top());
+			btnOptions.visible = btnOptions.active = !SPDSettings.intro();
+			btnOptions.setPos(startBtn.left()-btnOptions.width(), startBtn.top());
+			optionsPane.setPos(heroBtns.get(0).left(), startBtn.top() - optionsPane.height() - 2);
+			align(optionsPane);
+		}
+
+		updateOptionsColor();
+	}
+
+	private CustomClassConfig latestCustomClassConfig() {
+		GamesInProgress.Info latest = null;
+		for (GamesInProgress.Info info : GamesInProgress.checkAll()) {
+			if (info.customClassConfig == null) continue;
+			if (latest == null || info.lastPlayed > latest.lastPlayed) latest = info;
+		}
+		return latest == null ? null : latest.customClassConfig.copy();
+	}
+
+	public static String customClassTitle(CustomClassConfig config) {
+		return config == null ? Messages.get(HeroSelectScene.class, "custom_class_name") : config.name;
+	}
+
+	public static String customClassDescription(CustomClassConfig config) {
+		if (config == null) return Messages.get(HeroSelectScene.class, "custom_class_desc");
+		return Messages.get(HeroSelectScene.class, "custom_class_configured_desc",
+				Messages.get(HeroSelectScene.class, "custom_class_type"),
+				CustomClassSummaryFormatter.shortSummary(config));
 	}
 
 	private float uiAlpha;
@@ -581,7 +689,7 @@ public class HeroSelectScene extends PixelScene {
 		@Override
 		public void update() {
 			super.update();
-			if (cl != GamesInProgress.selectedClass){
+			if (customClassSelected || cl != GamesInProgress.selectedClass){
 				if (!cl.isUnlocked()){
 					icon.brightness(0.1f);
 				} else {
@@ -616,6 +724,39 @@ public class HeroSelectScene extends PixelScene {
 			if (height > 30) {
 				icon.y = y + (HEIGHT - icon.height()) / 2f;
 			}
+		}
+	}
+
+	private class CreateClassBtn extends StyledButton {
+
+		CreateClassBtn() {
+			super(Chrome.Type.GREY_BUTTON_TR, "");
+			icon(Icons.PLUS.get());
+		}
+
+		@Override
+		public void update() {
+			super.update();
+			icon.brightness(customClassSelected ? 1f : 0.6f);
+		}
+
+		@Override
+		protected void onClick() {
+			super.onClick();
+			if (customClassSelected) WndCreateClass.show(selectedCustomConfig);
+			else setSelectedCustomClass();
+		}
+
+		@Override
+		protected String hoverText() {
+			CustomClassConfig config = selectedCustomConfig == null ? latestCustomClassConfig() : selectedCustomConfig;
+			return customClassTitle(config);
+		}
+
+		@Override
+		protected void layout() {
+			super.layout();
+			if (height > 30) icon.y = y + (HeroBtn.HEIGHT - icon.height()) / 2f;
 		}
 	}
 

@@ -202,7 +202,7 @@ public class ScrollPane extends Component {
 
 				scroll(event.current);
 
-			} else if (PointF.distance( event.current, event.start ) > dragThreshold) {
+			} else if (TouchScrollGesture.isDrag(event.start, event.current, dragThreshold)) {
 
 				dragging = true;
 				lastPos.set( event.current );
@@ -235,5 +235,9 @@ public class ScrollPane extends Component {
 			
 		}
 		
+	}
+
+	public float scrollY() {
+		return content.camera.scroll.y;
 	}
 }
