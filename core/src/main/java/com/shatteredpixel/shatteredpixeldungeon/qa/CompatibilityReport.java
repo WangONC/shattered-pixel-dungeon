@@ -1,8 +1,13 @@
 package com.shatteredpixel.shatteredpixeldungeon.qa;
 
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
+
 import java.util.LinkedHashMap;
 
 public class CompatibilityReport {
+	public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+	public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
+
 	public static class Cell {
 		public int generated;
 		public int valid;

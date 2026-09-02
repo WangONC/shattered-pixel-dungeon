@@ -70,6 +70,8 @@ public final class ArchetypeStressReport {
 	}
 
 	public static class BuildSummary {
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId,displayName,playstyle,integrityClassification;
 		public int usedBudget,maxBudget,runs,victories,survivalFailures,runtimeFailures;
 		public double victoryRate,meanTurnsToVictory,medianTurnsToVictory,minTurnsToVictory,maxTurnsToVictory;
@@ -81,6 +83,8 @@ public final class ArchetypeStressReport {
 	/** Aggregate for one build/scenario pair across all fixed seeds. */
 	public static class ScenarioAggregate {
 		public String schema="class-archetype-scenario-aggregate-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId,scenarioId;
 		public int seeds,victories,survivalFailures,runtimeFailures;
 		public double victoryRate,meanTurnsToVictory,medianTurnsToVictory,minTurnsToVictory,maxTurnsToVictory;
@@ -89,6 +93,8 @@ public final class ArchetypeStressReport {
 
 	public static class DominanceFinding {
 		public String schema="class-archetype-dominance-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String stronger,weaker,classification,reason;
 		public int comparableScenarioWins,comparableScenarioLosses;
 		public double strongerVictoryRate,weakerVictoryRate,strongerMeanTurns,weakerMeanTurns;
@@ -100,6 +106,8 @@ public final class ArchetypeStressReport {
 
 	public static class ComponentUsage {
 		public String schema="class-archetype-component-usage-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId;
 		public final LinkedHashMap<String,Integer> skillUses=new LinkedHashMap<>();
 		public final LinkedHashMap<String,Integer> resourceGenerated=new LinkedHashMap<>();
@@ -112,6 +120,8 @@ public final class ArchetypeStressReport {
 
 	public static class ConstraintResult {
 		public String schema="class-archetype-constraint-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId,skillId,constraint;
 		public int nominalValue,effectiveValue,successfulUses,blockedAttempts;
 		public int desiredButCooldownBlocked,legalButNotSelected,cooldownUptime;
@@ -121,6 +131,8 @@ public final class ArchetypeStressReport {
 
 	public static class SpecialtyReport {
 		public String schema="class-archetype-specialty-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId;
 		public final ArrayList<String> bestScenarios=new ArrayList<>();
 		public final ArrayList<String> worstScenarios=new ArrayList<>();
@@ -131,6 +143,8 @@ public final class ArchetypeStressReport {
 
 	public static class ComponentValueAttribution {
 		public String schema="class-archetype-component-value-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String buildId;
 		public final LinkedHashMap<String,Integer> damage=new LinkedHashMap<>();
 		public final LinkedHashMap<String,Integer> mitigation=new LinkedHashMap<>();
@@ -142,6 +156,8 @@ public final class ArchetypeStressReport {
 
 	public static class MissingCapability {
 		public String schema="class-archetype-missing-capability-1";
+		public String evidenceClassification=LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible=LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String capability,status,evidence,reusableUses,implementation;
 	}
 }

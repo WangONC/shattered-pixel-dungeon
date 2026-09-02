@@ -6,10 +6,13 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.rules.CustomClassConfig;
+import com.shatteredpixel.shatteredpixeldungeon.rules.legacy.v5.LegacyGameplayBoundary;
 import com.watabou.noosa.Game;
 
 import java.nio.charset.StandardCharsets;
@@ -24,10 +27,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Pure-shell entry point. HeadlessApplication supplies files/audio mocks but never creates GLFW. */
 public final class RuleQaCli {
+	private static final String[] LEGACY_QA_MODES = {
+			"headless", "fuzz", "static", "archetype", "builder-vocabulary",
+			"law-trait-vocabulary", "player-build-equivalence", "gameplay-component-coverage",
+			"player-archetype-reconstruction", "player-class-core"
+	};
+
 	private RuleQaCli() {}
 
 	public static class Summary {
 		public String schema = "ruleqa-summary-1";
+		public String evidenceClassification = LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION;
+		public boolean v6CompletionEligible = LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE;
 		public String mode;
 		public String generatedAt;
 		public int scenarios;
@@ -87,10 +98,12 @@ public final class RuleQaCli {
 	private static void run(String[] args) throws Exception {
 		Options options = new Options(args);
 		String mode = System.getProperty("ruleqa.mode", "headless");
+		if (!legacyMode(mode)) throw new IllegalArgumentException("unknown ruleqa.mode " + mode);
 		Path project = Paths.get(System.getProperty("ruleqa.projectDir", ".")).toAbsolutePath().normalize();
 		Path reports = options.reportDir == null ? project.resolve("build/reports/ruleqa")
 				: project.resolve(options.reportDir).normalize();
 		Files.createDirectories(reports);
+		printLegacyEvidenceBanner(mode);
 		if ("archetype".equals(mode)) runArchetype(options, reports);
 		else if ("builder-vocabulary".equals(mode)) runBuilderVocabulary(reports);
 		else if ("law-trait-vocabulary".equals(mode)) runLawTraitVocabulary(reports);
@@ -101,6 +114,22 @@ public final class RuleQaCli {
 		else if ("fuzz".equals(mode)) runFuzz(options, reports);
 		else if ("static".equals(mode)) runStatic(options, reports);
 		else runHeadless(options, project, reports);
+	}
+
+	/** Single inventory used by CLI dispatch validation and the output-enumerating integration test. */
+	public static String[] legacyQaModes() { return LEGACY_QA_MODES.clone(); }
+
+	private static boolean legacyMode(String mode) {
+		for (String value : LEGACY_QA_MODES) if (value.equals(mode)) return true;
+		return false;
+	}
+
+	private static void printLegacyEvidenceBanner(String mode) {
+		System.out.println("LEGACY QA - REGRESSION EVIDENCE ONLY"
+				+ "\nmode=" + mode
+				+ "\nevidenceClassification=" + LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION
+				+ "\nv6CompletionEligible=" + LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE
+				+ "\nThis output cannot establish Gameplay Components v6 completion.");
 	}
 
 	private static void runPlayerClassCore(Path reports) throws Exception {
@@ -330,7 +359,28 @@ public final class RuleQaCli {
 	private static void writeJson(Path path, Object value) throws Exception {
 		Json json = new Json(JsonWriter.OutputType.json);
 		json.setUsePrototypes(false);
-		Files.write(path, json.prettyPrint(value).getBytes(StandardCharsets.UTF_8));
+		JsonValue root = new JsonReader().parse(json.prettyPrint(value));
+		if (!root.isObject()) {
+			JsonValue records = root;
+			root = new JsonValue(JsonValue.ValueType.object);
+			root.addChild("evidenceClassification", new JsonValue(LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION));
+			root.addChild("v6CompletionEligible", new JsonValue(LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE));
+			root.addChild("records", records);
+		} else {
+			JsonValue classification = root.get("evidenceClassification");
+			JsonValue eligible = root.get("v6CompletionEligible");
+			if (classification == null) {
+				root.addChild("evidenceClassification", new JsonValue(LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION));
+			} else if (!LegacyGameplayBoundary.EVIDENCE_CLASSIFICATION.equals(classification.asString())) {
+				throw new IllegalStateException("legacy QA emitted an invalid evidenceClassification: " + path);
+			}
+			if (eligible == null) {
+				root.addChild("v6CompletionEligible", new JsonValue(LegacyGameplayBoundary.V6_COMPLETION_ELIGIBLE));
+			} else if (eligible.asBoolean()) {
+				throw new IllegalStateException("legacy QA emitted v6CompletionEligible=true: " + path);
+			}
+		}
+		Files.write(path, root.prettyPrint(JsonWriter.OutputType.json, 100).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private static void printHeadless(Summary summary, ArrayList<ScenarioResult> results) {

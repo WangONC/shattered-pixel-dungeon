@@ -7,6 +7,11 @@ dependencies {
     implementation project(':core')
     implementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test {
+    workingDir new File(project(':core').projectDir, '/src/main/assets')
 }
 
 processResources {
