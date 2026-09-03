@@ -107,7 +107,15 @@ public class GameplayComponentsV6ArchitectureTest {
 			"resolvePendingBindings");
 	private static final Set<String> LEGACY_EXTERNAL_TYPES = set(
 			"com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleMark",
-			"com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleMode");
+			"com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleMode",
+			"com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero",
+			"com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass",
+			"com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass");
+	private static final Set<String> V6_EXTERNAL_DEPENDENCY_ALLOWLIST = set(
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java",
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClass.java",
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6.java",
+			"headless/src/main/java/com/shatteredpixel/shatteredpixeldungeon/headless/HeadlessPlayerBuildAdapter.java");
 	private static final Set<String> V6_BANNED_QA_SYMBOLS = set(
 			"ArchetypeStressReport", "BuilderVocabularyExposureAudit", "CompatibilityReport",
 			"FuzzReport", "GameplayComponentCoverageAudit", "LawTraitVocabularyAudit",
@@ -221,7 +229,8 @@ public class GameplayComponentsV6ArchitectureTest {
 	}
 
 	@Test public void v6ProductionRootAndOneWayMigrationBoundaryAreEnforcedAcrossProductionTree() throws Exception {
-		Path production = repoRoot().resolve("core/src/main/java");
+		Path repository = repoRoot();
+		Path production = repository.resolve("core/src/main/java");
 		Path rulesRoot = production.resolve("com/shatteredpixel/shatteredpixeldungeon/rules");
 		Path contractRoot = rulesRoot.resolve("contract/v6");
 		Path migrationRoot = rulesRoot.resolve("migration/v5");
@@ -235,6 +244,7 @@ public class GameplayComponentsV6ArchitectureTest {
 				String code = codeOnly(rawSource);
 				boolean inContract = path.startsWith(contractRoot);
 				boolean inMigration = path.startsWith(migrationRoot);
+				String repositoryRelative = normalizePath(repository.relativize(path));
 				if (path.startsWith(rulesRoot)) {
 					String relative = normalizePath(rulesRoot.relativize(path));
 					String violation = ruleProductionSourceViolation(relative, rawSource);
@@ -247,11 +257,12 @@ public class GameplayComponentsV6ArchitectureTest {
 				boolean declaresV6Type = Pattern.compile("\\b(?:class|interface|enum|record)\\s+V6[A-Za-z0-9_]*\\b")
 						.matcher(code).find();
 				boolean referencesV6 = code.contains("rules.contract.v6") || declaresV6Type;
-				if ((declaresV6Package || referencesV6) && !inContract && !inMigration) {
-					fail(path + " places or references v6 production code outside rules/contract/v6 or rules/migration/v5");
-				}
+				String externalViolation = externalV6DependencyViolation(repositoryRelative, code);
+				assertNull(path + " violates the explicit v6 player-boundary allowlist: "
+						+ externalViolation, externalViolation);
 				boolean referencesLegacy = legacyDependencyViolation(code) != null;
-				if (referencesLegacy && referencesV6 && !inMigration) {
+				if (referencesLegacy && referencesV6 && !inMigration
+						&& !V6_EXTERNAL_DEPENDENCY_ALLOWLIST.contains(repositoryRelative)) {
 					fail(path + " depends on both v5 and v6 outside the migration bridge");
 				}
 				if (inContract) {
@@ -271,13 +282,42 @@ public class GameplayComponentsV6ArchitectureTest {
 				}
 			});
 		}
+		Path headlessProduction = repository.resolve("headless/src/main/java");
+		try (Stream<Path> files = Files.walk(headlessProduction)) {
+			files.filter(path -> path.toString().endsWith(".java")).forEach(path -> {
+				String relative = normalizePath(repository.relativize(path));
+				String violation = externalV6DependencyViolation(relative, codeOnly(read(path)));
+				assertNull(path + " violates the explicit v6 player-boundary allowlist: " + violation, violation);
+			});
+		}
 		assertExact("frozen rules root Legacy Java files", legacyRootFiles,
 				FROZEN_LEGACY_RULE_ROOT_FILES);
 		assertExact("rules/legacy/v5 boundary metadata files", legacyBoundaryFiles,
 				FROZEN_LEGACY_BOUNDARY_METADATA_FILES);
 		assertFalse(V6GameplayBoundary.PUBLIC_GAMEPLAY_ENABLED);
+		assertFalse(V6GameplayBoundary.PLAYER_BUILDER_ENABLED);
 		assertEquals(6, V6GameplayBoundary.TARGET_SCHEMA);
 		assertEquals("0.2-final", V6GameplayBoundary.CONTRACT);
+	}
+
+	@Test public void playerV6DependenciesUseOnlyTheExactAuditedAllowlist() {
+		for (String relative : V6_EXTERNAL_DEPENDENCY_ALLOWLIST) {
+			Path source = repoRoot().resolve(relative);
+			assertTrue(relative + " missing", Files.isRegularFile(source));
+			assertNull(relative, externalV6DependencyViolation(relative, codeOnly(read(source))));
+		}
+		String unlistedLegacySource = "package com.shatteredpixel.shatteredpixeldungeon.rules; "
+				+ "import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.builder.PlayerBuildSession; "
+				+ "public final class RuleRuntimeProbe { PlayerBuildSession session; }";
+		String violation = externalV6DependencyViolation(
+				"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/RuleRuntimeProbe.java",
+				unlistedLegacySource);
+		assertNotNull(violation);
+		assertTrue(violation, violation.contains("not explicitly allowlisted"));
+		assertRulePathRejected("contract/v6/builder/LegacyHeroLeak.java",
+				javaSource("rules.contract.v6.builder",
+						"import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero; "
+								+ "public final class LegacyHeroLeak { Hero hero; }"), "legacy model");
 	}
 
 	@Test public void pathGuardRejectsUnversionedRulesSubtreesAndForbiddenV6Dependencies() {
@@ -476,6 +516,23 @@ public class GameplayComponentsV6ArchitectureTest {
 			if (containsIdentifier(code, domain)) return relative + " creates forbidden fixed domain " + domain;
 		}
 		return null;
+	}
+
+	private static String externalV6DependencyViolation(String repositoryRelativePath, String source) {
+		String relative = repositoryRelativePath.replace('\\', '/');
+		String code = codeOnly(source);
+		String packageName = packageName(code);
+		boolean declaresV6Package = packageName.matches("(?:.*\\.)?v6(?:\\..*)?");
+		boolean declaresV6Type = Pattern.compile("\\b(?:class|interface|enum|record)\\s+V6[A-Za-z0-9_]*\\b")
+				.matcher(code).find();
+		boolean referencesV6 = code.contains("rules.contract.v6") || declaresV6Type;
+		if (!declaresV6Package && !referencesV6) return null;
+		if (relative.startsWith("core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/")
+				|| relative.startsWith("core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/migration/v5/")) {
+			return null;
+		}
+		if (V6_EXTERNAL_DEPENDENCY_ALLOWLIST.contains(relative)) return null;
+		return relative + " references v6 but is not explicitly allowlisted";
 	}
 
 	private static String legacyDependencyViolation(String source) {

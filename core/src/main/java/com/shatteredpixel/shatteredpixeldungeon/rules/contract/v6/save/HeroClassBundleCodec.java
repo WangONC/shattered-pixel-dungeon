@@ -1,6 +1,5 @@
 package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save;
 
-import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.ClassBuildValidator;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyDiagnostic;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyReport;
@@ -30,10 +29,10 @@ public final class HeroClassBundleCodec {
 		heroBundle.put(CLASS_RUNTIME_STATE, payloads.runtime);
 	}
 
-	public void store(Hero hero, ClassBuildSpec build, ClassRuntimeState state) {
-		if (hero == null) throw new IllegalArgumentException("hero is required");
+	public void store(V6PayloadHost host, ClassBuildSpec build, ClassRuntimeState state) {
+		if (host == null) throw new IllegalArgumentException("payload host is required");
 		Payloads payloads = payloads(build, state);
-		hero.setGameplayComponentsV6Payloads(payloads.build, payloads.runtime);
+		host.setGameplayComponentsV6Payloads(payloads.build(), payloads.runtime());
 	}
 
 	public LoadPair load(Bundle heroBundle) {
@@ -42,19 +41,20 @@ public final class HeroClassBundleCodec {
 		return loadPayloads(heroBundle.getString(CLASS_BUILD_SPEC), heroBundle.getString(CLASS_RUNTIME_STATE));
 	}
 
-	public LoadPair load(Hero hero) {
-		if (hero == null || hero.gameplayComponentsV6BuildPayload() == null
-				|| hero.gameplayComponentsV6RuntimePayload() == null) return missing();
-		return loadPayloads(hero.gameplayComponentsV6BuildPayload(), hero.gameplayComponentsV6RuntimePayload());
+	public LoadPair load(V6PayloadHost host) {
+		if (host == null) return missing();
+		return loadPayloads(host.gameplayComponentsV6BuildPayload(),
+				host.gameplayComponentsV6RuntimePayload());
 	}
 
-	private Payloads payloads(ClassBuildSpec build, ClassRuntimeState state) {
+	public Payloads payloads(ClassBuildSpec build, ClassRuntimeState state) {
 		if (build == null || state == null) throw new IllegalArgumentException("build and state are required");
 		if (!build.buildId().equals(state.buildId())) throw new IllegalArgumentException("runtime build id mismatch");
 		return new Payloads(builds.serialize(build), runtime.serialize(state));
 	}
 
-	private LoadPair loadPayloads(String buildPayload, String runtimePayload) {
+	public LoadPair loadPayloads(String buildPayload, String runtimePayload) {
+		if (buildPayload == null || runtimePayload == null) return missing();
 		CanonicalLoadResult<ClassBuildSpec> buildLoad = builds.deserialize(buildPayload);
 		if (buildLoad.value() == null) return new LoadPair(buildLoad.state(), null, null,
 				new DependencyReport(Collections.<DependencyDiagnostic>emptyList()), buildLoad.diagnostics().toString());
@@ -97,10 +97,12 @@ public final class HeroClassBundleCodec {
 		}
 	}
 
-	private static final class Payloads {
+	public static final class Payloads {
 		private final String build;
 		private final String runtime;
 		private Payloads(String build, String runtime) { this.build = build; this.runtime = runtime; }
+		public String build() { return build; }
+		public String runtime() { return runtime; }
 	}
 
 	public static final class LoadPair {

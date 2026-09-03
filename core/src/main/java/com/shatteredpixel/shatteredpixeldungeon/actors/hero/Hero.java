@@ -163,6 +163,10 @@ import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.AlchemyScene;
 import com.shatteredpixel.shatteredpixeldungeon.rules.RuleHooks;
 import com.shatteredpixel.shatteredpixeldungeon.rules.RuleRuntime;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.HeroClassBundleCodec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.V6PayloadHost;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -190,7 +194,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 
-public class Hero extends Char {
+public class Hero extends Char implements V6PayloadHost {
 
 	{
 		actPriority = HERO_PRIO;
@@ -454,6 +458,17 @@ public class Hero extends Char {
 	public void setGameplayComponentsV6Payloads(String buildPayload, String runtimePayload) {
 		this.classBuildSpecV6Payload = buildPayload;
 		this.classRuntimeStateV6Payload = runtimePayload;
+	}
+
+	/** One-way Hero wiring: the legacy player object depends on the v6 codecs, never vice versa. */
+	public void storeGameplayComponentsV6(ClassBuildSpec build, ClassRuntimeState runtime) {
+		HeroClassBundleCodec.Payloads payloads = new HeroClassBundleCodec().payloads(build, runtime);
+		setGameplayComponentsV6Payloads(payloads.build(), payloads.runtime());
+	}
+
+	public HeroClassBundleCodec.LoadPair loadGameplayComponentsV6() {
+		return new HeroClassBundleCodec().loadPayloads(classBuildSpecV6Payload,
+				classRuntimeStateV6Payload);
 	}
 
 	public String gameplayComponentsV6BuildPayload() {

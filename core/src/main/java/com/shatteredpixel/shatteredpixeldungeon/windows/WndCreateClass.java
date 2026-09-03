@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.PlayerFacingClassBuildForm
 import com.shatteredpixel.shatteredpixeldungeon.rules.PlayerFacingBuildValidator;
 import com.shatteredpixel.shatteredpixeldungeon.rules.PlayerFacingValidationIssue;
 import com.shatteredpixel.shatteredpixeldungeon.rules.PlayerBuildAssembler;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.V6GameplayBoundary;
 import com.shatteredpixel.shatteredpixeldungeon.rules.ResourceRegistry;
 import com.shatteredpixel.shatteredpixeldungeon.rules.ResourceFlowSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.ResourceSpec;
@@ -84,7 +85,13 @@ public final class WndCreateClass {
 		State(ClassBuild build) { this.build = build; }
 	}
 
-	public static void show() { show(null); }
+	public static void show() {
+		if (V6GameplayBoundary.PLAYER_BUILDER_ENABLED) WndCreateClassV6.show();
+		else show(null);
+	}
+
+	/** Explicit P02 entrypoint used by player-path smoke and the transition feature flag. */
+	public static void showV6() { WndCreateClassV6.show(); }
 
 	public static void show(CustomClassConfig existing) {
 		ClassBuild build = existing == null ? new ClassBuild() : existing.toClassBuild().copy();

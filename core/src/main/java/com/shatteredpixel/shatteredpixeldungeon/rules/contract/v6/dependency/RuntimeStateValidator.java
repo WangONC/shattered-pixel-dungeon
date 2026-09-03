@@ -2,15 +2,27 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ContractNodeSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.StableTarget;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Read-only validation of every P01 runtime reference and authoritative runtime key. */
 public final class RuntimeStateValidator {
+	/** List form exists so duplicate entries can be diagnosed before a Map would collapse them. */
+	public static final class NodeCounterValue {
+		private final StableId nodeId;
+		private final Integer value;
+		public NodeCounterValue(StableId nodeId, Integer value) { this.nodeId = nodeId; this.value = value; }
+		public StableId nodeId() { return nodeId; }
+		public Integer value() { return value; }
+	}
+
 	public DependencyReport validate(ClassBuildSpec build, ClassRuntimeState runtime) {
 		if (build == null || runtime == null) throw new IllegalArgumentException("build and runtime are required");
 		List<DependencyDiagnostic> result = new ArrayList<>();
@@ -67,8 +79,55 @@ public final class RuntimeStateValidator {
 		duplicateOpaque(result, build.buildId(), "runtime.attachments", runtime.attachments());
 		duplicateOpaque(result, build.buildId(), "runtime.snapshots", runtime.snapshots());
 		duplicateOpaque(result, build.buildId(), "runtime.learned_abilities", runtime.learnedAbilities());
+		result.addAll(validateNodeCounters(build, "runtime.cooldowns", counterValues(runtime.cooldowns())).diagnostics());
+		result.addAll(validateNodeCounters(build, "runtime.uses_this_floor", counterValues(runtime.usesThisFloor())).diagnostics());
 		result.addAll(new DependencyResolver().resolveReferences(build, references).diagnostics());
 		return new DependencyReport(result);
+	}
+
+	public DependencyReport validateNodeCounters(ClassBuildSpec build, String fieldPath,
+			List<NodeCounterValue> values) {
+		if (build == null || fieldPath == null || fieldPath.isEmpty() || values == null) {
+			throw new IllegalArgumentException("build, counter path, and values are required");
+		}
+		List<DependencyDiagnostic> result = new ArrayList<>();
+		Set<StableId> seen = new HashSet<>();
+		for (int i = 0; i < values.size(); i++) {
+			NodeCounterValue value = values.get(i);
+			String path = fieldPath + "[" + i + "]";
+			if (value == null || value.nodeId() == null) {
+				result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.HARD_CONFLICT,
+						build.buildId(), "runtime.counter.invalid_node_id_type"));
+				continue;
+			}
+			if (!seen.add(value.nodeId())) result.add(diagnostic(build.buildId(), path + ".node_id",
+					DependencyState.HARD_CONFLICT, value.nodeId(), "runtime.counter.duplicate_node_id"));
+			if (value.value() == null || value.value() < 0) result.add(diagnostic(build.buildId(), path + ".value",
+					DependencyState.HARD_CONFLICT, value.nodeId(), "runtime.counter.invalid_value_type_or_range"));
+			StableTarget target = find(build, value.nodeId());
+			if (target == null) result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.UNRESOLVED,
+					value.nodeId(), "runtime.counter.node_missing"));
+			else if (!(target instanceof ContractNodeSpec)
+					|| (((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.SKILL
+					&& ((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.OPERATION)) {
+				result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.HARD_CONFLICT,
+						value.nodeId(), "runtime.counter.wrong_node_type"));
+			}
+		}
+		return new DependencyReport(result);
+	}
+
+	private static List<NodeCounterValue> counterValues(Map<StableId, Integer> values) {
+		List<NodeCounterValue> result = new ArrayList<>();
+		for (Map.Entry<StableId, Integer> value : values.entrySet()) {
+			result.add(new NodeCounterValue(value.getKey(), value.getValue()));
+		}
+		return result;
+	}
+
+	private static StableTarget find(ClassBuildSpec build, StableId id) {
+		for (StableTarget target : build.allTargets()) if (target.id().equals(id)) return target;
+		return null;
 	}
 
 	private static void duplicateLongIds(List<DependencyDiagnostic> result, StableId owner, String path,

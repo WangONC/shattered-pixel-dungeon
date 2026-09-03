@@ -11,6 +11,8 @@ public final class V6GameplayBoundary {
 	public static final String CONTRACT = "0.2-final";
 	public static final int TARGET_SCHEMA = 6;
 	public static final boolean PUBLIC_GAMEPLAY_ENABLED = false;
+	/** P02 real UI exists behind this transition flag; runtime gameplay remains disabled. */
+	public static final boolean PLAYER_BUILDER_ENABLED = false;
 
 	private V6GameplayBoundary() {}
 }
