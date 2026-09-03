@@ -7,10 +7,11 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [System.IO.Path]::GetFullPath($Root)
 $delivery = [System.IO.Path]::GetFullPath($DeliveryRoot)
 $base = '3ca4f6913d8fb592feeb813ac85dc07d609be2cc'
+$expectedHead = 'aa24e469457be39c79269b38cfb31f6a1cae1583'
 $expectedBranch = 'feature/gameplay-components-v6'
 $stage = Join-Path $delivery 'review-content'
-$bundle = Join-Path $delivery 'SPD_GC_V6_P02_REVIEW_BUNDLE.zip'
-$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P02_BUILDER_CHECKPOINT.zip'
+$bundle = Join-Path $delivery 'SPD_GC_V6_P02_R1_REVIEW_BUNDLE.zip'
+$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P02_R1_CHECKPOINT.zip'
 $sourceManifest = Join-Path $delivery 'checkpoint/SOURCE_SHA256SUMS.txt'
 $gateResultsPath = Join-Path $delivery 'P02_GATE_RESULTS.json'
 $verifyReportPath = Join-Path $delivery 'CHECKPOINT_UNPACK_VERIFICATION.md'
@@ -23,7 +24,7 @@ $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 $parentTree = (& git -C $repoRoot rev-parse ($base + '^{tree}')).Trim()
 $candidateSourceTree = (& git -C $repoRoot write-tree).Trim()
 if ($branch -ne $expectedBranch) { throw "unexpected branch: $branch" }
-if ($head -ne $base) { throw "P02 bundle must be prepared directly on baseline $base, actual $head" }
+if ($head -ne $expectedHead) { throw "P02-R1 bundle must be prepared on candidate $expectedHead, actual $head" }
 foreach ($required in @($checkpoint, $sourceManifest, $gateResultsPath, $verifyReportPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "required P02 evidence missing: $required" }
 }
@@ -56,7 +57,7 @@ function Invoke-GitText {
     [System.IO.File]::WriteAllText($Output, $stdout, [System.Text.UTF8Encoding]::new($false))
 }
 
-Invoke-GitText @('diff', '--cached', '--binary', $base) (Join-Path $stage 'P02_FULL_BINARY.diff')
+Invoke-GitText @('diff', '--cached', '--binary', $base) (Join-Path $stage 'P02_R1_CUMULATIVE.diff')
 Invoke-GitText @('diff', '--cached', '--name-status', $base) (Join-Path $stage 'CHANGED_FILES.txt')
 
 $auditPath = Join-Path $repoRoot 'docs/SPD_CLASS_GAMEPLAY_COMPONENTS_CURRENT_IMPLEMENTATION_AUDIT_v0.2.md'
@@ -64,8 +65,8 @@ $contractPath = Join-Path $repoRoot 'docs/SPD_CLASS_GAMEPLAY_COMPONENTS_IMPLEMEN
 $planPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/SPD_GAMEPLAY_COMPONENTS_V6_DEVELOPMENT_PLAN_FINAL.md'
 $promptPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/P02_builder_kernel_CODEX_PROMPT.md'
 $manifest = [ordered]@{
-    phase = 'P02'
-    title = 'Player Builder Command、Reducer、Form Schema 与真实 UI 基础'
+    phase = 'P02-R1'
+    title = 'Player Builder Form Controller 与真实玩家编辑路径收口'
     accepted = $false
     next_phase_allowed = $false
     parent_checkpoint_sha256 = $null
@@ -76,7 +77,7 @@ $manifest = [ordered]@{
     candidate_commit = 'created after deterministic review bundle generation'
     candidate_source_tree = $candidateSourceTree
     checkpoint = [ordered]@{
-        file = 'SPD_GC_V6_P02_BUILDER_CHECKPOINT.zip'
+        file = 'SPD_GC_V6_P02_R1_CHECKPOINT.zip'
         sha256 = $checkpointHash
         source_manifest_sha256 = $sourceManifestHash
         excluded_from_review_bundle = $true
@@ -97,7 +98,8 @@ $manifest = [ordered]@{
     gates = $gateResults.gates
     limitations = @(
         'P03 typed Skill Compiler and executable Skill runtime are intentionally absent.',
-        'P02 declaration commands create DEFERRED nodes and never claim IMPLEMENTED runtime behavior.',
+        'Internal P02 declaration commands may retain DEFERRED nodes and never claim IMPLEMENTED runtime behavior.',
+        'The player root does not expose executable P02_DEFERRED_SKILL or P02_DEFERRED_COMPONENT entries.',
         'StartingKit and Progression remain unexposed DEFERRED sections.',
         'The v6 player-builder feature flag remains false pending independent acceptance.'
     )
@@ -106,11 +108,11 @@ $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $stag
 
 $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt')) | Where-Object { $_ }).Count
 @(
-    '# Gameplay Components v6 — P02 实施报告'
+    '# Gameplay Components v6 — P02-R1 收口报告'
     ''
     '## 结论'
     ''
-    '- P02 working-tree Gate：PASS。'
+    '- P02-R1 working-tree Gate：PASS。'
     '- 完整 checkpoint 解压副本 Gate：PASS。'
     '- 未进入 P03；未 push、未 tag。'
     '- `accepted=false`，`next_phase_allowed=false`。'
@@ -126,10 +128,12 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     ''
     '- `BuilderCommand` 仅携带 primitive、String、typed ref；UI 与 headless 均只通过同一 `PlayerBuildSession`/`BuilderReducer` 改变 draft。'
     '- Reducer 覆盖 P01 声明 create/edit/rename/delete/explicit rebind、navigation、undo/redo、save/load、trace replay 和 fail-closed finalize。'
-    '- 每条命令后统一重算 Dependency、Validation 与 Budget ledger。'
-    '- FormSchema 覆盖 Text、Number、Enum、Reference、Boolean、Nested Variant、List 与只读 Diagnostic；数值控件为 stepper。'
-    '- `WndCreateClassV6` 是真实窗口基础，旧 `WndCreateClass` 仅在关闭的 v6 feature flag 下保留 Legacy 路由。'
-    '- Architecture Guard 使用四个精确路径白名单，拒绝任意其它旧生产代码依赖 v6，并拒绝 v6 依赖 Legacy Hero/ClassBuild/EffectSpec/Registry/QA/auto-bind。'
+    '- `BuilderFormController` 将 FormSchema 映射为 UI Field Model，再产生 BuilderCommand 并调用同一 PlayerBuildSession；enabled 字段均有真实状态转换。'
+    '- FormSchema 覆盖 Text、Number、Enum、Enum List、Reference、Boolean、Nested Variant、List 与只读 Diagnostic；数值控件为 NumberStepper。'
+    '- `compatible_entity_capacity` 按当前 EntityType 过滤；引用删除后保留 UNRESOLVED、lastKnownDisplayName、短 ID 与显式 rebind。'
+    '- Nested/List 与尚无运行时能力的字段在玩家页面明确禁用；Skill/Component Deferred 假入口不再暴露。'
+    '- `WndCreateClassV6` 通过控制器视图提供真实编辑路径，旧 `WndCreateClass` 仅在关闭的 v6 feature flag 下保留 Legacy 路由。'
+    '- Architecture Guard 使用精确路径白名单，拒绝任意其它旧生产代码依赖 v6，并拒绝 v6 依赖 Legacy Hero/ClassBuild/EffectSpec/Registry/QA/auto-bind。'
     '- RuntimeStateValidator 与 canonical runtime reader 对 cooldowns/usesThisFloor 的缺失、重复、非法值和错误节点类型均 fail closed。'
     '- Finalize 允许 draft 保留 unresolved 或未暴露 Deferred，但拒绝 unresolved、hard conflict、超预算和 player-exposed unsupported runtime。'
     ''
@@ -144,7 +148,7 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     '- P03 Skill Compiler/Executor 未实现。'
     '- Entity facets/capabilities 与 Recipe output 仍为声明或 Deferred envelope。'
     '- StartingKit、Progression 以及后续 Talent/Subclass/Specialization/Armor Ability 未暴露。'
-) | Set-Content -LiteralPath (Join-Path $stage 'PHASE_P02_IMPLEMENTATION_REPORT.md') -Encoding utf8NoBOM
+) | Set-Content -LiteralPath (Join-Path $stage 'PHASE_P02_R1_IMPLEMENTATION_REPORT.md') -Encoding utf8NoBOM
 
 Copy-Item -LiteralPath $gateResultsPath -Destination (Join-Path $stage 'P02_GATE_RESULTS.json')
 Copy-Item -LiteralPath $verifyReportPath -Destination (Join-Path $stage 'CHECKPOINT_UNPACK_VERIFICATION.md')

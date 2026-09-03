@@ -62,7 +62,7 @@ public final class V6FormSchemas {
 				bool("initial"), enumeration("duration_policy", ModeSpec.ModeDurationPolicy.values()),
 				number("default_duration_turns", 0, 999, 1), diagnostic()));
 		result.put(ENTITY_CAPACITY, schema(ENTITY_CAPACITY, text("display_name"),
-				enumeration("entity_types", EntityType.values()), number("maximum", 1, 99, 1),
+				enumerationList("entity_types", EntityType.values()), number("maximum", 1, 99, 1),
 				enumeration("overflow_policy", EntityCapacitySpec.CapacityOverflowPolicy.values()), diagnostic()));
 		result.put(ENTITY, schema(ENTITY, text("display_name"), enumeration("entity_type", EntityType.values()),
 				new ReferenceFieldSchema("capacity", label("capacity"), false, RefKind.CAPACITY, "compatible_entity_capacity"),
@@ -97,6 +97,11 @@ public final class V6FormSchemas {
 		List<String> names = new ArrayList<>();
 		for (Enum<?> value : values) names.add(value.name());
 		return new EnumFieldSchema(key, label(key), true, names);
+	}
+	private static EnumListFieldSchema enumerationList(String key, Enum<?>[] values) {
+		List<String> names = new ArrayList<>();
+		for (Enum<?> value : values) names.add(value.name());
+		return new EnumListFieldSchema(key, label(key), true, names, 1);
 	}
 	private static ReadOnlyDiagnosticFieldSchema diagnostic() {
 		return new ReadOnlyDiagnosticFieldSchema("diagnostics", label("diagnostics"));

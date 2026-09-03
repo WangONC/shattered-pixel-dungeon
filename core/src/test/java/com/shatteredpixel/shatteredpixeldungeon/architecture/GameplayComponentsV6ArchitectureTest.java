@@ -115,6 +115,7 @@ public class GameplayComponentsV6ArchitectureTest {
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClass.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6.java",
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6ControllerView.java",
 			"headless/src/main/java/com/shatteredpixel/shatteredpixeldungeon/headless/HeadlessPlayerBuildAdapter.java");
 	private static final Set<String> V6_BANNED_QA_SYMBOLS = set(
 			"ArchetypeStressReport", "BuilderVocabularyExposureAudit", "CompatibilityReport",

@@ -2,6 +2,8 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.form;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.TypedRef;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.EntityCapacitySpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.EntitySpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.StableTarget;
 
 import java.util.ArrayList;
@@ -30,16 +32,32 @@ public final class ReferencePicker {
 	public List<Option> options() { return options; }
 
 	public static ReferencePicker from(ClassBuildSpec build, ReferenceFieldSchema schema, TypedRef current) {
-		if (build == null || schema == null) throw new IllegalArgumentException("build and reference schema are required");
+		return from(build, schema, current, null);
+	}
+
+	public static ReferencePicker from(ClassBuildSpec build, ReferenceFieldSchema schema, TypedRef current,
+			StableTarget owner) {
+		if (build == null || schema == null) {
+			throw new IllegalArgumentException("build and reference schema are required");
+		}
 		List<Option> result = new ArrayList<>();
 		boolean currentFound = current == null;
 		for (StableTarget target : build.allTargets()) {
-			if (target.refKind() == schema.expectedKind()) {
+			if (target.refKind() == schema.expectedKind() && matchesFilter(schema.filterKey(), owner, target)) {
 				result.add(new Option(target.id().value(), target.displayName().text(), false));
 				if (current != null && current.targetId().equals(target.id())) currentFound = true;
 			}
 		}
 		if (!currentFound) result.add(0, new Option(current.targetId().value(), current.lastKnownDisplayName(), true));
 		return new ReferencePicker(result);
+	}
+
+	private static boolean matchesFilter(String filterKey, StableTarget owner, StableTarget target) {
+		if ("all_mode_groups".equals(filterKey) || "all_properties".equals(filterKey)) return true;
+		if ("compatible_entity_capacity".equals(filterKey)) {
+			if (!(owner instanceof EntitySpec) || !(target instanceof EntityCapacitySpec)) return false;
+			return ((EntityCapacitySpec) target).entityTypes().contains(((EntitySpec) owner).type());
+		}
+		throw new IllegalArgumentException("unsupported reference filter: " + filterKey);
 	}
 }

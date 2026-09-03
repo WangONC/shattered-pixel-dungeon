@@ -9,7 +9,7 @@ $delivery = [System.IO.Path]::GetFullPath($DeliveryRoot)
 $checkpointRoot = Join-Path $delivery 'checkpoint'
 $verificationRoot = Join-Path $delivery 'checkpoint-verification'
 $unpackedRoot = Join-Path $verificationRoot 'source'
-$checkpointPath = Join-Path $checkpointRoot 'SPD_GC_V6_P02_BUILDER_CHECKPOINT.zip'
+$checkpointPath = Join-Path $checkpointRoot 'SPD_GC_V6_P02_R1_CHECKPOINT.zip'
 $sourceManifest = Join-Path $checkpointRoot 'SOURCE_SHA256SUMS.txt'
 $reportPath = Join-Path $delivery 'CHECKPOINT_UNPACK_VERIFICATION.md'
 
@@ -53,10 +53,10 @@ $gateResults = Get-Content -LiteralPath (Join-Path $gateOutput 'P02_GATE_RESULTS
 $status = if ($gateExitCode -eq 0 -and $gateResults.status -eq 'PASS') { 'PASS' } else { 'FAIL' }
 
 @(
-    '# P02 Checkpoint 解压副本复验报告'
+    '# P02-R1 Checkpoint 解压副本复验报告'
     ''
     "- Status: $status"
-    '- Checkpoint: SPD_GC_V6_P02_BUILDER_CHECKPOINT.zip'
+    '- Checkpoint: SPD_GC_V6_P02_R1_CHECKPOINT.zip'
     "- Checkpoint SHA-256: $checkpointHash"
     "- Source manifest SHA-256: $manifestHash"
     "- Verified source files: $verifiedFiles"

@@ -23,6 +23,7 @@ public class FormSchemaUiFoundationTest {
 		assertTrue(V6FormSchemas.require("RESOURCE").requireField("maximum") instanceof NumberFieldSchema);
 		assertTrue(V6FormSchemas.require("MARK").requireField("kind") instanceof EnumFieldSchema);
 		assertTrue(V6FormSchemas.require("MODE").requireField("group") instanceof ReferenceFieldSchema);
+		assertTrue(V6FormSchemas.require("ENTITY_CAPACITY").requireField("entity_types") instanceof EnumListFieldSchema);
 		assertTrue(V6FormSchemas.require("ENTITY").requireField("facets") instanceof NestedVariantFieldSchema);
 		assertTrue(V6FormSchemas.require("RECIPE").requireField("inputs") instanceof ListFieldSchema);
 		assertTrue(V6FormSchemas.require("PROPERTY").requireField("diagnostics") instanceof ReadOnlyDiagnosticFieldSchema);
@@ -44,10 +45,13 @@ public class FormSchemaUiFoundationTest {
 	}
 
 	@Test public void realWindowAdapterOnlyDispatchesCommands() throws Exception {
-		Path source=repoRoot().resolve("core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6.java");
-		String code=new String(Files.readAllBytes(source),StandardCharsets.UTF_8);
-		assertTrue(code.contains("session.dispatch("));assertTrue(code.contains("NumberStepper"));assertTrue(code.contains("V6FormSchemas"));
+		Path windows=repoRoot().resolve("core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows");
+		String entry=new String(Files.readAllBytes(windows.resolve("WndCreateClassV6.java")),StandardCharsets.UTF_8);
+		String code=new String(Files.readAllBytes(windows.resolve("WndCreateClassV6ControllerView.java")),StandardCharsets.UTF_8);
+		assertTrue(entry.contains("WndCreateClassV6ControllerView.show"));
+		assertTrue(code.contains("controller.dispatchValue("));assertTrue(code.contains("BuilderFormController"));
 		assertFalse(code.contains("new ResourceSpec("));assertFalse(code.contains(".toBuilder()"));assertFalse(code.contains("resolvePendingBindings"));
+		assertFalse(code.contains("P02_DEFERRED_COMPONENT"));assertFalse(code.contains("P02_DEFERRED_SKILL"));
 	}
 	private static Path repoRoot(){Path current=Paths.get("").toAbsolutePath().normalize();for(int i=0;i<10&&current!=null;i++,current=current.getParent())if(Files.isRegularFile(current.resolve("settings.gradle")))return current;throw new AssertionError("repository root not found");}
 }

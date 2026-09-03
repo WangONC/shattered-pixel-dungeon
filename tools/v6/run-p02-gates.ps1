@@ -91,6 +91,10 @@ Invoke-RecordedGate 'p02-architecture-guard' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.architecture.GameplayComponentsV6ArchitectureTest'
 )
+Invoke-RecordedGate 'p02-r1-form-controller' $gradle @(
+    '--console=plain', '--rerun-tasks', ':core:test',
+    '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.BuilderFormControllerTest'
+)
 Invoke-RecordedGate 'p02-builder-kernel' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.Builder*',
@@ -129,7 +133,7 @@ Get-ChildItem -LiteralPath $logRoot -Filter '*.json' | Sort-Object Name | ForEac
     }
 }
 $result = [ordered]@{
-    phase = 'P02'
+    phase = 'P02-R1'
     baseline = '3ca4f6913d8fb592feeb813ac85dc07d609be2cc'
     generated_at = [DateTimeOffset]::Now.ToString('o')
     java_home = $javaHome
