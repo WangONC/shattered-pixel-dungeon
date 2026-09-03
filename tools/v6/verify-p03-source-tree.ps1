@@ -25,6 +25,7 @@ $required = @(
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/validation/RuntimeCapabilityValidator.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/ClassCompilePlan.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/CompiledSkill.java',
+    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/ExecutableBuildAdmissionPolicy.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/SkillCompiler.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/EffectExecutorRegistry.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/EffectPreflightResult.java',
@@ -41,6 +42,7 @@ $required = @(
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03DirectDamageRuntimeBehaviorTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03TypedSkillCanonicalRoundTripTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03R1CompilePlanTest.java',
+    'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03R2CompileAdmissionTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03R1ExecutorPreflightTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03ImplementationEvidenceTest.java',
     'headless/src/test/java/com/shatteredpixel/shatteredpixeldungeon/headless/P03HeadlessTypedSkillParityTest.java',
@@ -86,8 +88,13 @@ foreach ($relative in @(
 )) {
     $text = [System.IO.File]::ReadAllText((Join-Path $v6Root $relative))
     if ($text -match 'spec\.skill|\bSkillSpec\b') { $failures.Add("COMPILED_RUNTIME_DEPENDS_ON_AUTHORING:$relative") }
-    if ($text -match 'P03CompletionMatrix|ComponentCompletionRow|P03[A-Za-z0-9_]+Test#') { $failures.Add("PRODUCTION_DEPENDS_ON_QA_EVIDENCE:$relative") }
+    if ($text -match 'P03CompletionMatrix|ComponentCompletionRow|P03ImplementationEvidence|P03[A-Za-z0-9_]+Test#') { $failures.Add("PRODUCTION_DEPENDS_ON_QA_EVIDENCE:$relative") }
 }
+
+$evidencePath = Join-Path $repoRoot 'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03ImplementationEvidence.java'
+$evidence = [System.IO.File]::ReadAllText($evidencePath)
+if ($evidence -match 'GameplayVariantCatalog|Iterable<String>') { $failures.Add('COMPLETION_EVIDENCE_IS_CATALOG_GENERATED') }
+if ($evidence -notmatch 'register\(out, row\("EFFECT\.DIRECT_DAMAGE"\)\)') { $failures.Add('DIRECT_DAMAGE_EXPLICIT_EVIDENCE_ROW_MISSING') }
 
 $eventContext = [System.IO.File]::ReadAllText((Join-Path $v6Root 'runtime/GameplayEventContext.java'))
 if ($eventContext -match 'actors\.Char|\bChar\b') { $failures.Add('GAMEPLAY_EVENT_CONTEXT_RETAINS_MUTABLE_CHAR') }

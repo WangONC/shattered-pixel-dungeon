@@ -24,7 +24,7 @@ public class P03TypedSkillArchitectureTest {
 			String code=new String(Files.readAllBytes(root.resolve(relative)),StandardCharsets.UTF_8);assertFalse(relative+" must not depend on authoring SkillSpec",code.contains("spec.skill"));assertFalse(relative+" must not retain SkillSpec",code.contains("SkillSpec"));
 		}
 		String event=new String(Files.readAllBytes(root.resolve("runtime/GameplayEventContext.java")),StandardCharsets.UTF_8);assertFalse(event.contains("actors.Char"));assertFalse(event.matches("(?s).*\bChar\b.*"));
-		try(Stream<Path> files=Files.walk(root)){for(Path file:(Iterable<Path>)files.filter(v->v.toString().endsWith(".java"))::iterator){String code=new String(Files.readAllBytes(file),StandardCharsets.UTF_8);assertFalse(file+" contains production completion evidence",code.contains("P03CompletionMatrix")||code.contains("ComponentCompletionRow"));}}
+		try(Stream<Path> files=Files.walk(root)){for(Path file:(Iterable<Path>)files.filter(v->v.toString().endsWith(".java"))::iterator){String code=new String(Files.readAllBytes(file),StandardCharsets.UTF_8);assertFalse(file+" contains production completion evidence",code.contains("P03CompletionMatrix")||code.contains("ComponentCompletionRow")||code.contains("P03ImplementationEvidence"));}}
 	}
 	private static Path repoRoot(){Path current=Paths.get("").toAbsolutePath().normalize();for(int i=0;i<10&&current!=null;i++,current=current.getParent())if(Files.isRegularFile(current.resolve("settings.gradle")))return current;throw new AssertionError("repository root not found");}
 }

@@ -7,12 +7,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [System.IO.Path]::GetFullPath($Root)
 $delivery = [System.IO.Path]::GetFullPath($DeliveryRoot)
 $base = '49918f76dde77a637d84fc08c8a1a03f99138a3d'
-$expectedParent = '8e7cf607f77f34e0a32eecbbdb4ea641a29721cd'
+$expectedParent = '719a6530bd40e0033284cba3251afeb488b7f7ad'
 $expectedBranch = 'feature/gameplay-components-v6'
-$expectedMessage = '完成 v6 编译执行链与真实运行时接入'
+$expectedMessage = '收紧 v6 编译准入与实现证据边界'
 $stage = Join-Path $delivery 'review-content'
-$bundle = Join-Path $delivery 'SPD_GC_V6_P03_R1_REVIEW_BUNDLE.zip'
-$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P03_R1_RUNTIME_CHECKPOINT.zip'
+$bundle = Join-Path $delivery 'SPD_GC_V6_P03_R2_REVIEW_BUNDLE.zip'
+$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P03_R2_RUNTIME_CHECKPOINT.zip'
 $sourceManifest = Join-Path $delivery 'checkpoint/SOURCE_SHA256SUMS.txt'
 $gateResultsPath = Join-Path $delivery 'P03_GATE_RESULTS.json'
 $verifyReportPath = Join-Path $delivery 'CHECKPOINT_UNPACK_VERIFICATION.md'
@@ -29,7 +29,7 @@ $status = @(& git -C $repoRoot status --porcelain)
 $parentTree = (& git -C $repoRoot rev-parse ($base + '^{tree}')).Trim()
 $candidateSourceTree = (& git -C $repoRoot rev-parse 'HEAD^{tree}').Trim()
 if ($branch -ne $expectedBranch) { throw "unexpected branch: $branch" }
-if ($parent -ne $expectedParent) { throw "P03-R1 candidate parent must be $expectedParent, actual $parent" }
+if ($parent -ne $expectedParent) { throw "P03-R2 candidate parent must be $expectedParent, actual $parent" }
 if ($message -ne $expectedMessage) { throw "unexpected P03 commit message: $message" }
 if ($status.Count -gt 0) { throw 'review bundle requires a clean committed source tree' }
 foreach ($required in @($checkpoint, $sourceManifest, $gateResultsPath, $verifyReportPath, $parentCheckpoint)) {
@@ -76,8 +76,8 @@ $contractPath = Join-Path $repoRoot 'docs/SPD_CLASS_GAMEPLAY_COMPONENTS_IMPLEMEN
 $planPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/SPD_GAMEPLAY_COMPONENTS_V6_DEVELOPMENT_PLAN_FINAL.md'
 $promptPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/P03_typed_skill_compiler_CODEX_PROMPT.md'
 $manifest = [ordered]@{
-    phase = 'P03-R1'
-    title = 'v6 编译执行链与真实运行时接入'
+    phase = 'P03-R2'
+    title = 'v6 编译准入与实现证据边界'
     accepted = $false
     next_phase_allowed = $false
     parent_checkpoint_sha256 = $parentCheckpointHash
@@ -90,7 +90,7 @@ $manifest = [ordered]@{
     candidate_commit = $head
     candidate_source_tree = $candidateSourceTree
     checkpoint = [ordered]@{
-        file = 'SPD_GC_V6_P03_R1_RUNTIME_CHECKPOINT.zip'
+        file = 'SPD_GC_V6_P03_R2_RUNTIME_CHECKPOINT.zip'
         sha256 = $checkpointHash
         source_manifest_sha256 = $sourceManifestHash
         excluded_from_review_bundle = $true
@@ -101,7 +101,7 @@ $manifest = [ordered]@{
         skill_schema_version = '0.2'
         contract_version = '0.2-final'
         price_version = 'v6-p03-1'
-        runtime_version = 'v6-p03-r1-1'
+        runtime_version = 'v6-p03-r2-1'
     }
     frozen_documents = [ordered]@{
         audit_sha256 = (Get-FileHash -LiteralPath $auditPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -119,6 +119,7 @@ $manifest = [ordered]@{
         'All other Contract variants remain DECLARED, DEFERRED, or UNSUPPORTED and are not player-exposed.',
         'DelayAfterPrimarySuccess, OnNextActionAfterPrimarySuccess, AnyOf, Not, CapabilityOverride, and BehaviorOverride have no P03 runtime implementation.',
         'Talent, Subclass, Specialization, Armor Ability, and P04+ effect families are intentionally absent.',
+        'P04 starts with Hero-load bridge reconstruction, installed-state preservation, post-cost transaction boundaries, build-wide runtime node ID uniqueness, NEUTRAL relation filtering, and multi-effect-chain atomicity.',
         'Both public v6 gameplay and player-builder feature flags remain false pending independent acceptance.'
     )
 }
@@ -126,11 +127,11 @@ $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $stag
 
 $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt')) | Where-Object { $_ }).Count
 @(
-    '# Gameplay Components v6 — P03-R1 实施报告'
+    '# Gameplay Components v6 — P03-R2 实施报告'
     ''
     '## 结论'
     ''
-    '- P03-R1 working-tree Gate：PASS。'
+    '- P03-R2 working-tree Gate：PASS。'
     '- 完整 checkpoint 解压副本 Gate：PASS。'
     '- 未进入 P04；未 push、未 tag。'
     '- accepted=false，next_phase_allowed=false。'
@@ -139,7 +140,7 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     ''
     "- 分支：$branch"
     "- 唯一 P02 Git 基线 / 累计 Diff 基线：$base"
-    "- P03-R1 直接父提交：$expectedParent"
+    "- P03-R2 直接父提交：$expectedParent"
     "- P02 parent checkpoint SHA-256：$parentCheckpointHash"
     "- P03 候选提交：$head"
     "- P03 候选 source tree：$candidateSourceTree"
@@ -156,6 +157,9 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     '- 已安装到真实 Hero 的 finalized v6 build 通过 RuleHooks.triggerActive 进入 v6 compile plan、V6RuleRuntime 与 typed executor。'
     '- DirectDamage 复用 RuleHooks 的 damage causality/recursion guard；真实击杀归属 Hero，ON_KILL 仅触发一次且事件、原因与 originating skill 可追踪。'
     '- Completion evidence 已移至测试 QA 层；生产 Compiler/Plan/Runtime 不依赖测试矩阵或测试方法字符串。'
+    '- Compiler 使用全构筑 executable-admission policy；实际存在但未实现的 Component、Operation、Entity 或其它玩法节点会以 diagnostics 拒绝，空 Deferred 章节占位不构成静默准入或全局阻塞。'
+    '- Completion evidence 使用显式逐 Variant Registry；未知、缺失或不可运行的证据行均由对抗 Gate 拒绝。'
+    '- Runtime Bridge 仅允许精确 Host Integration import；旧 ClassBuild、EffectSpec、Registry、QA 与 auto-bind 均不可借桥接白名单进入 v6。'
     '- canonical save/load 覆盖全部 P03 typed 字段；v5 skill migration placeholder 明确返回 unsupported typed mapping。'
     ''
     '## Gate 证据'

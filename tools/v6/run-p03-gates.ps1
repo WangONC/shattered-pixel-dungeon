@@ -117,11 +117,15 @@ Invoke-RecordedGate 'p03-r1-compiled-plan' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03R1CompilePlanTest'
 )
+Invoke-RecordedGate 'p03-r2-build-admission' $gradle @(
+    '--console=plain', '--rerun-tasks', ':core:test',
+    '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03R2CompileAdmissionTest'
+)
 Invoke-RecordedGate 'p03-r1-executor-preflight' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03R1ExecutorPreflightTest'
 )
-Invoke-RecordedGate 'p03-r1-completion-evidence' $gradle @(
+Invoke-RecordedGate 'p03-r2-completion-evidence' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03ImplementationEvidenceTest'
 )
@@ -159,7 +163,7 @@ Get-ChildItem -LiteralPath $logRoot -Filter '*.json' | Sort-Object Name | ForEac
     }
 }
 $result = [ordered]@{
-    phase = 'P03-R1'
+    phase = 'P03-R2'
     baseline = '49918f76dde77a637d84fc08c8a1a03f99138a3d'
     generated_at = [DateTimeOffset]::Now.ToString('o')
     java_home = $javaHome

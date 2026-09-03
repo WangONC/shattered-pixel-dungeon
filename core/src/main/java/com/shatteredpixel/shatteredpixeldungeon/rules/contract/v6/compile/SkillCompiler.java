@@ -21,7 +21,7 @@ import java.util.List;
 
 /** Fail-closed authoring-to-runtime compiler. It never repairs a draft. */
 public final class SkillCompiler {
-	public static final String RUNTIME_VERSION="v6-p03-r1-1";
+	public static final String RUNTIME_VERSION="v6-p03-r2-1";
 	private final EffectExecutorRegistry executors;
 	public SkillCompiler(EffectExecutorRegistry executors){if(executors==null)throw new IllegalArgumentException("executor registry is required");this.executors=executors;}
 	public ClassCompilePlan compile(ClassBuildSpec build){return compile(build,false);}
@@ -29,8 +29,7 @@ public final class SkillCompiler {
 	private ClassCompilePlan compile(ClassBuildSpec build,boolean preview){
 		if(build==null)throw new IllegalArgumentException("build is required");
 		List<CompiledSkill> compiled=new ArrayList<>();List<CompileDiagnostic> diagnostics=new ArrayList<>();
-		if(build.schemaVersion()!=ClassBuildSpec.SCHEMA_VERSION)diagnostics.add(new CompileDiagnostic(build.buildId(),"schema_version",DependencyState.UNSUPPORTED,"schema.unsupported"));
-		if(!ClassBuildSpec.CONTRACT_VERSION.equals(build.contractVersion()))diagnostics.add(new CompileDiagnostic(build.buildId(),"contract_version",DependencyState.HARD_CONFLICT,"contract.version_mismatch"));
+		diagnostics.addAll(new ExecutableBuildAdmissionPolicy().evaluate(build));
 		addBuildDiagnostics(diagnostics,new DependencyResolver().resolve(build));
 		BuilderBudgetLedger ledger=new BuilderBudgetPolicy.P03TypedSkill().evaluate(build);
 		if(!BuilderBudgetPolicy.P03TypedSkill.PRICE_VERSION.equals(build.budgetMetadata().priceVersion()))
@@ -68,7 +67,7 @@ public final class SkillCompiler {
 		return new CompiledSkill.DirectDamageEffect(effect.effectId(),amount.value(),CompiledSkill.DamageType.valueOf(effect.damageType().name()),CompiledSkill.DefensePolicy.valueOf(effect.defensePolicy().name()));
 	}
 	private static CompileDiagnostic toCompile(SkillSpec skill,DependencyDiagnostic diagnostic){return new CompileDiagnostic(skill.id(),diagnostic.fieldPath(),diagnostic.state(),diagnostic.messageKey());}
-	private static void addBuildDiagnostics(List<CompileDiagnostic> out,DependencyReport report){for(DependencyDiagnostic diagnostic:report.diagnostics())out.add(new CompileDiagnostic(diagnostic.ownerNodeId(),diagnostic.fieldPath(),diagnostic.state(),diagnostic.messageKey()));}
+	private static void addBuildDiagnostics(List<CompileDiagnostic> out,DependencyReport report){for(DependencyDiagnostic diagnostic:report.diagnostics())if(diagnostic.state()!=DependencyState.RESOLVED)out.add(new CompileDiagnostic(diagnostic.ownerNodeId(),diagnostic.fieldPath(),diagnostic.state(),diagnostic.messageKey()));}
 	private static String hash(ClassBuildSpec build){
 		try{byte[] bytes=MessageDigest.getInstance("SHA-256").digest(new CanonicalBuildCodec().serialize(build).getBytes(StandardCharsets.UTF_8));StringBuilder out=new StringBuilder("sha256:");for(byte value:bytes)out.append(String.format("%02x",value&0xff));return out.toString();}
 		catch(NoSuchAlgorithmException impossible){throw new AssertionError(impossible);}
