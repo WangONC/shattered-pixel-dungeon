@@ -16,4 +16,5 @@ public final class CompileDiagnostic {
 	public String fieldPath() { return fieldPath; }
 	public DependencyState state() { return state; }
 	public String messageKey() { return messageKey; }
+	@Override public String toString() { return state + ":" + skillId.value() + ":" + fieldPath + ":" + messageKey; }
 }

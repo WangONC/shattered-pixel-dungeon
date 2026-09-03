@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.Dep
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyReport;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.DependencyState;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.EffectExecutorRegistry;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledSkill;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.EffectSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.UnconfiguredEffectSpec;
@@ -26,7 +27,9 @@ public final class RuntimeCapabilityValidator {
 		return new DependencyReport(result);
 	}
 	private void check(List<DependencyDiagnostic> out, SkillSpec skill, String path, EffectSpec effect) {
-		if (!(effect instanceof UnconfiguredEffectSpec) && !executors.has(effect.variantKey())) {
+		CompiledSkill.EffectVariant compiledVariant = effect.variantKey() == com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.EffectVariantKey.DIRECT_DAMAGE
+				? CompiledSkill.EffectVariant.DIRECT_DAMAGE : null;
+		if (!(effect instanceof UnconfiguredEffectSpec) && (compiledVariant == null || !executors.has(compiledVariant))) {
 			out.add(new DependencyDiagnostic(skill.id(), path, DependencyState.UNSUPPORTED, effect.effectId(), "skill.executor_missing"));
 		}
 	}

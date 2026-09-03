@@ -2,7 +2,6 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.builder.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.catalog.GameplayVariantCatalog;
-import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.catalog.P03CompletionMatrix;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.catalog.VariantDescriptor;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.form.BuilderFormController;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.form.V6FormSchemas;
@@ -16,15 +15,15 @@ import static org.junit.Assert.*;
 
 /** Layer A: schema exposure is explicit and does not imply executor support. */
 public class P03SkillFormSchemaTest {
-	@Test public void onlyEvidenceCompleteVariantsArePlayerExposedAndHaveCompletionRows() {
+	@Test public void onlyImplementedVariantsArePlayerExposed() {
 		assertEquals(11,GameplayVariantCatalog.playerExposed().size());
 		for(VariantDescriptor descriptor:GameplayVariantCatalog.playerExposed()){
 			assertEquals(ImplementationState.IMPLEMENTED,descriptor.state());
 			assertFalse(descriptor.priceKey().isEmpty());
-			assertEquals(descriptor.qualifiedKey(),P03CompletionMatrix.require(descriptor.qualifiedKey()).variantKey());
 		}
 		assertFalse(GameplayVariantCatalog.require("EFFECT","PUSH").playerExposed());
-		assertFalse(EffectExecutorRegistry.standard().has(com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.EffectVariantKey.PUSH));
+		assertTrue(EffectExecutorRegistry.standard().has(
+				com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledSkill.EffectVariant.DIRECT_DAMAGE));
 		assertNotNull(V6FormSchemas.require(V6FormSchemas.SKILL).requireField("effect_primary_amount"));
 	}
 

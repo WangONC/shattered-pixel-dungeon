@@ -167,6 +167,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.HeroClass
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.V6PayloadHost;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.V6RuleRuntimeBridge;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -242,6 +243,7 @@ public class Hero extends Char implements V6PayloadHost {
 
 	//Null for vanilla heroes. Configuration and mutable state are stored together in the Hero bundle.
 	private RuleRuntime ruleRuntime;
+	private transient V6RuleRuntimeBridge gameplayComponentsV6RuntimeBridge;
 	private String classBuildSpecV6Payload;
 	private String classRuntimeStateV6Payload;
 	
@@ -369,6 +371,7 @@ public class Hero extends Char implements V6PayloadHost {
 		}
 		classBuildSpecV6Payload = bundle.contains(CLASS_BUILD_SPEC_V6) ? bundle.getString(CLASS_BUILD_SPEC_V6) : null;
 		classRuntimeStateV6Payload = bundle.contains(CLASS_RUNTIME_STATE_V6) ? bundle.getString(CLASS_RUNTIME_STATE_V6) : null;
+		gameplayComponentsV6RuntimeBridge = null;
 
 		belongings.restoreFromBundle( bundle );
 	}
@@ -453,6 +456,14 @@ public class Hero extends Char implements V6PayloadHost {
 
 	public void setRuleRuntime(RuleRuntime runtime) {
 		this.ruleRuntime = runtime;
+	}
+
+	public V6RuleRuntimeBridge gameplayComponentsV6RuntimeBridge() {
+		return gameplayComponentsV6RuntimeBridge;
+	}
+
+	public void setGameplayComponentsV6RuntimeBridge(V6RuleRuntimeBridge bridge) {
+		this.gameplayComponentsV6RuntimeBridge = bridge;
 	}
 
 	public void setGameplayComponentsV6Payloads(String buildPayload, String runtimePayload) {

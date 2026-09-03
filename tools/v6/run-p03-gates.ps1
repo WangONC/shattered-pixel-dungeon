@@ -11,6 +11,7 @@ $artifactRoot = Join-Path $deliveryRoot 'artifacts'
 [System.IO.Directory]::CreateDirectory($logRoot) | Out-Null
 [System.IO.Directory]::CreateDirectory($artifactRoot) | Out-Null
 Get-ChildItem -LiteralPath $logRoot -File -ErrorAction SilentlyContinue | Remove-Item -Force
+Get-ChildItem -LiteralPath $artifactRoot -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
 $javaHome = 'D:\Environment\Java\jdk-21'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
@@ -112,6 +113,18 @@ Invoke-RecordedGate 'p03-layer-e-save-load' $gradle @(
     '--console=plain', '--rerun-tasks', ':core:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03TypedSkillCanonicalRoundTripTest'
 )
+Invoke-RecordedGate 'p03-r1-compiled-plan' $gradle @(
+    '--console=plain', '--rerun-tasks', ':core:test',
+    '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03R1CompilePlanTest'
+)
+Invoke-RecordedGate 'p03-r1-executor-preflight' $gradle @(
+    '--console=plain', '--rerun-tasks', ':core:test',
+    '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03R1ExecutorPreflightTest'
+)
+Invoke-RecordedGate 'p03-r1-completion-evidence' $gradle @(
+    '--console=plain', '--rerun-tasks', ':core:test',
+    '--tests', 'com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.P03ImplementationEvidenceTest'
+)
 Invoke-RecordedGate 'p03-headless-parity' $gradle @(
     '--console=plain', '--rerun-tasks', ':headless:test',
     '--tests', 'com.shatteredpixel.shatteredpixeldungeon.headless.P03HeadlessTypedSkillParityTest'
@@ -146,7 +159,7 @@ Get-ChildItem -LiteralPath $logRoot -Filter '*.json' | Sort-Object Name | ForEac
     }
 }
 $result = [ordered]@{
-    phase = 'P03'
+    phase = 'P03-R1'
     baseline = '49918f76dde77a637d84fc08c8a1a03f99138a3d'
     generated_at = [DateTimeOffset]::Now.ToString('o')
     java_home = $javaHome

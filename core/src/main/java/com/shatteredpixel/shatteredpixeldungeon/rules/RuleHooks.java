@@ -6,11 +6,15 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RuleResourceBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.RuntimeExecutionContext;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.SkillExecutionResult;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.V6RuleRuntimeBridge;
 
 /** The small, stable integration surface used by core SPD classes. */
 public final class RuleHooks {
 	private static final ThreadLocal<Integer> RULE_STATUS_DEPTH = new ThreadLocal<>();
 	private static final ThreadLocal<java.util.ArrayList<RuleContext>> RULE_DAMAGE_CONTEXT = new ThreadLocal<>();
+	private static long nextStandaloneV6EventId = 1_000_000_000L;
 
 	private RuleHooks() {}
 
@@ -177,10 +181,47 @@ public final class RuleHooks {
 	}
 
 	public static boolean triggerActive(Hero hero, int cell, String skillId) {
+		if (hero == null) return false;
 		RuleContext context = new RuleContext(RuleEvent.ACTIVE, hero);
 		context.cell = cell;
 		RuleRuntime runtime = runtime(hero);
-		return runtime != null && (skillId == null ? runtime.dispatch(context) : runtime.dispatchActive(skillId, context));
+		boolean legacyFired = runtime != null && (skillId == null ? runtime.dispatch(context) : runtime.dispatchActive(skillId, context));
+		V6RuleRuntimeBridge bridge = hero.gameplayComponentsV6RuntimeBridge();
+		if (bridge == null) return legacyFired;
+		if (context.eventId() == 0) context.assignEventId(nextStandaloneV6EventId());
+		try {
+			SkillExecutionResult result = bridge.triggerActive(hero, cell, skillId, context.eventId(),
+					context.parentEventId(), v6DamageGateway(context));
+			return legacyFired || result.status() == SkillExecutionResult.Status.APPLIED;
+		} catch (IllegalArgumentException rejected) {
+			RuleTrace.record("V6_ACTIVE_REJECTED", rejected.getMessage());
+			return legacyFired;
+		}
+	}
+
+	private static synchronized long nextStandaloneV6EventId() {
+		return nextStandaloneV6EventId++;
+	}
+
+	private static RuntimeExecutionContext.DamageGateway v6DamageGateway(final RuleContext activeContext) {
+		return (effect, source, target, event) -> {
+			RuleContext damageContext = activeContext.causedByRule(event.originatingSkillId().value());
+			damageContext.source = source;
+			damageContext.target = target;
+			damageContext.cell = target == null ? -1 : target.pos;
+			damageContext.amount = effect.amount();
+			int before = target.HP;
+			beginRuleDamage(damageContext);
+			try {
+				target.damage(effect.amount(), source);
+			} finally {
+				endRuleDamage();
+			}
+			RuleTrace.record("V6_DAMAGE", "event=#" + event.eventId() + " cause=#" + event.causeEventId()
+					+ " sourceRule=" + event.originatingSkillId().value() + " source=#" + source.id()
+					+ " target=#" + target.id() + " applied=" + Math.max(0, before - target.HP));
+			return new RuntimeExecutionContext.DamageOutcome(before, target.HP);
+		};
 	}
 
 	public static boolean ordinaryWeaponsRestricted(Hero hero) {

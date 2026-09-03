@@ -113,10 +113,15 @@ public class GameplayComponentsV6ArchitectureTest {
 			"com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass");
 	private static final Set<String> V6_EXTERNAL_DEPENDENCY_ALLOWLIST = set(
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java",
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/RuleHooks.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClass.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6ControllerView.java",
 			"headless/src/main/java/com/shatteredpixel/shatteredpixeldungeon/headless/HeadlessPlayerBuildAdapter.java");
+	private static final String V6_CONTRACT_RUNTIME_BRIDGE =
+			"contract/v6/runtime/V6RuleRuntimeBridge.java";
+	private static final String V6_CONTRACT_RUNTIME_BRIDGE_REPOSITORY_PATH =
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/" + V6_CONTRACT_RUNTIME_BRIDGE;
 	private static final Set<String> V6_BANNED_QA_SYMBOLS = set(
 			"ArchetypeStressReport", "BuilderVocabularyExposureAudit", "CompatibilityReport",
 			"FuzzReport", "GameplayComponentCoverageAudit", "LawTraitVocabularyAudit",
@@ -263,6 +268,7 @@ public class GameplayComponentsV6ArchitectureTest {
 						+ externalViolation, externalViolation);
 				boolean referencesLegacy = legacyDependencyViolation(code) != null;
 				if (referencesLegacy && referencesV6 && !inMigration
+						&& !repositoryRelative.equals(V6_CONTRACT_RUNTIME_BRIDGE_REPOSITORY_PATH)
 						&& !V6_EXTERNAL_DEPENDENCY_ALLOWLIST.contains(repositoryRelative)) {
 					fail(path + " depends on both v5 and v6 outside the migration bridge");
 				}
@@ -271,7 +277,8 @@ public class GameplayComponentsV6ArchitectureTest {
 					assertFalse(path + " imports the legacy boundary", code.contains("rules.legacy.v5"));
 					assertFalse(path + " imports legacy QA", code.contains(
 							"com.shatteredpixel.shatteredpixeldungeon.qa."));
-					assertNull(path + " depends on the frozen legacy model", legacyDependencyViolation(code));
+					if (!repositoryRelative.equals(V6_CONTRACT_RUNTIME_BRIDGE_REPOSITORY_PATH))
+						assertNull(path + " depends on the frozen legacy model", legacyDependencyViolation(code));
 					for (String banned : V6_BANNED_QA_SYMBOLS) {
 						assertFalse(path + " depends on legacy QA symbol " + banned,
 								containsIdentifier(code, banned));
@@ -319,6 +326,13 @@ public class GameplayComponentsV6ArchitectureTest {
 				javaSource("rules.contract.v6.builder",
 						"import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero; "
 								+ "public final class LegacyHeroLeak { Hero hero; }"), "legacy model");
+		assertRulePathAllowed(V6_CONTRACT_RUNTIME_BRIDGE, javaSource("rules.contract.v6.runtime",
+				"import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero; "
+						+ "public final class V6RuleRuntimeBridge { Hero hero; }"));
+		assertRulePathRejected("contract/v6/runtime/ArbitraryHeroBridge.java",
+				javaSource("rules.contract.v6.runtime",
+						"import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero; "
+								+ "public final class ArbitraryHeroBridge { Hero hero; }"), "legacy model");
 	}
 
 	@Test public void pathGuardRejectsUnversionedRulesSubtreesAndForbiddenV6Dependencies() {
@@ -506,7 +520,8 @@ public class GameplayComponentsV6ArchitectureTest {
 			return relative + " depends on the legacy QA package";
 		}
 		String legacyViolation = legacyDependencyViolation(code);
-		if (legacyViolation != null) return relative + " depends on the frozen legacy model: " + legacyViolation;
+		if (legacyViolation != null && !V6_CONTRACT_RUNTIME_BRIDGE.equals(relative))
+			return relative + " depends on the frozen legacy model: " + legacyViolation;
 		for (String banned : V6_BANNED_QA_SYMBOLS) {
 			if (containsIdentifier(code, banned)) {
 				return relative + " depends on legacy QA symbol " + banned;

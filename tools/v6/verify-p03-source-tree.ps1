@@ -27,16 +27,22 @@ $required = @(
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/CompiledSkill.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/compile/SkillCompiler.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/EffectExecutorRegistry.java',
+    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/EffectPreflightResult.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/DirectDamageExecutor.java',
+    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/GameplayEventContext.java',
+    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/RuntimeExecutionContext.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/V6RuleRuntime.java',
+    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/V6RuleRuntimeBridge.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/runtime/RuntimeTrace.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/catalog/GameplayVariantCatalog.java',
-    'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/catalog/P03CompletionMatrix.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/builder/SkillDraftEditor.java',
     'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/migration/v5/P03SkillMigrationPlaceholder.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03PlayerBuilderVerticalSliceTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03DirectDamageRuntimeBehaviorTest.java',
     'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03TypedSkillCanonicalRoundTripTest.java',
+    'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03R1CompilePlanTest.java',
+    'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03R1ExecutorPreflightTest.java',
+    'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03ImplementationEvidenceTest.java',
     'headless/src/test/java/com/shatteredpixel/shatteredpixeldungeon/headless/P03HeadlessTypedSkillParityTest.java',
     'tools/v6/run-p03-gates.ps1',
     'tools/v6/verify-p03-checkpoint.ps1',
@@ -62,6 +68,33 @@ if (Test-Path -LiteralPath $registryPath) {
     if ($registry -match 'V6FormSchemas') { $failures.Add('EXECUTOR_REGISTRY_DEPENDS_ON_FORM_SCHEMA') }
     if ($registry -match 'DAMAGE_STANDARD|defaultDamage|fallback') { $failures.Add('EXECUTOR_REGISTRY_CONTAINS_DAMAGE_FALLBACK') }
 }
+
+foreach ($removed in @(
+    'catalog/P03CompletionMatrix.java',
+    'catalog/ComponentCompletionRow.java'
+)) {
+    if (Test-Path -LiteralPath (Join-Path $v6Root $removed) -PathType Leaf) { $failures.Add("PRODUCTION_QA_EVIDENCE_PRESENT:$removed") }
+}
+
+foreach ($relative in @(
+    'compile/CompiledSkill.java',
+    'compile/ClassCompilePlan.java',
+    'runtime/V6RuleRuntime.java',
+    'runtime/EffectExecutor.java',
+    'runtime/EffectExecutorRegistry.java',
+    'runtime/DirectDamageExecutor.java'
+)) {
+    $text = [System.IO.File]::ReadAllText((Join-Path $v6Root $relative))
+    if ($text -match 'spec\.skill|\bSkillSpec\b') { $failures.Add("COMPILED_RUNTIME_DEPENDS_ON_AUTHORING:$relative") }
+    if ($text -match 'P03CompletionMatrix|ComponentCompletionRow|P03[A-Za-z0-9_]+Test#') { $failures.Add("PRODUCTION_DEPENDS_ON_QA_EVIDENCE:$relative") }
+}
+
+$eventContext = [System.IO.File]::ReadAllText((Join-Path $v6Root 'runtime/GameplayEventContext.java'))
+if ($eventContext -match 'actors\.Char|\bChar\b') { $failures.Add('GAMEPLAY_EVENT_CONTEXT_RETAINS_MUTABLE_CHAR') }
+$executorContract = [System.IO.File]::ReadAllText((Join-Path $v6Root 'runtime/EffectExecutor.java'))
+if ($executorContract -notmatch 'EffectPreflightResult\s+preflight') { $failures.Add('TYPED_EXECUTOR_PREFLIGHT_MISSING') }
+$ruleHooks = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/RuleHooks.java'))
+if ($ruleHooks -notmatch 'gameplayComponentsV6RuntimeBridge\(\)' -or $ruleHooks -notmatch 'v6DamageGateway') { $failures.Add('RULE_HOOKS_V6_RUNTIME_BRIDGE_MISSING') }
 
 Get-ChildItem -LiteralPath $v6Root -Recurse -Filter '*.java' | ForEach-Object {
     $relative = [System.IO.Path]::GetRelativePath($repoRoot, $_.FullName).Replace('\', '/')

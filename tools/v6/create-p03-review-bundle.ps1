@@ -7,11 +7,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [System.IO.Path]::GetFullPath($Root)
 $delivery = [System.IO.Path]::GetFullPath($DeliveryRoot)
 $base = '49918f76dde77a637d84fc08c8a1a03f99138a3d'
+$expectedParent = '8e7cf607f77f34e0a32eecbbdb4ea641a29721cd'
 $expectedBranch = 'feature/gameplay-components-v6'
-$expectedMessage = '建立 v6 强类型技能语言与执行框架'
+$expectedMessage = '完成 v6 编译执行链与真实运行时接入'
 $stage = Join-Path $delivery 'review-content'
-$bundle = Join-Path $delivery 'SPD_GC_V6_P03_REVIEW_BUNDLE.zip'
-$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P03_TYPED_SKILL_CHECKPOINT.zip'
+$bundle = Join-Path $delivery 'SPD_GC_V6_P03_R1_REVIEW_BUNDLE.zip'
+$checkpoint = Join-Path $delivery 'checkpoint/SPD_GC_V6_P03_R1_RUNTIME_CHECKPOINT.zip'
 $sourceManifest = Join-Path $delivery 'checkpoint/SOURCE_SHA256SUMS.txt'
 $gateResultsPath = Join-Path $delivery 'P03_GATE_RESULTS.json'
 $verifyReportPath = Join-Path $delivery 'CHECKPOINT_UNPACK_VERIFICATION.md'
@@ -28,7 +29,7 @@ $status = @(& git -C $repoRoot status --porcelain)
 $parentTree = (& git -C $repoRoot rev-parse ($base + '^{tree}')).Trim()
 $candidateSourceTree = (& git -C $repoRoot rev-parse 'HEAD^{tree}').Trim()
 if ($branch -ne $expectedBranch) { throw "unexpected branch: $branch" }
-if ($parent -ne $base) { throw "P03 candidate parent must be $base, actual $parent" }
+if ($parent -ne $expectedParent) { throw "P03-R1 candidate parent must be $expectedParent, actual $parent" }
 if ($message -ne $expectedMessage) { throw "unexpected P03 commit message: $message" }
 if ($status.Count -gt 0) { throw 'review bundle requires a clean committed source tree' }
 foreach ($required in @($checkpoint, $sourceManifest, $gateResultsPath, $verifyReportPath, $parentCheckpoint)) {
@@ -75,20 +76,21 @@ $contractPath = Join-Path $repoRoot 'docs/SPD_CLASS_GAMEPLAY_COMPONENTS_IMPLEMEN
 $planPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/SPD_GAMEPLAY_COMPONENTS_V6_DEVELOPMENT_PLAN_FINAL.md'
 $promptPath = Join-Path $repoRoot 'docs/SPD_GAMEPLAY_V6_DEV_PLAN/P03_typed_skill_compiler_CODEX_PROMPT.md'
 $manifest = [ordered]@{
-    phase = 'P03'
-    title = 'v6 强类型技能语言与执行框架'
+    phase = 'P03-R1'
+    title = 'v6 编译执行链与真实运行时接入'
     accepted = $false
     next_phase_allowed = $false
     parent_checkpoint_sha256 = $parentCheckpointHash
     parent_checkpoint_file = 'SPD_GC_V6_P02_R1_CHECKPOINT.zip'
     parent_baseline_commit = $base
+    revision_parent_commit = $expectedParent
     cumulative_diff_baseline = $base
     parent_baseline_tree = $parentTree
     branch = $branch
     candidate_commit = $head
     candidate_source_tree = $candidateSourceTree
     checkpoint = [ordered]@{
-        file = 'SPD_GC_V6_P03_TYPED_SKILL_CHECKPOINT.zip'
+        file = 'SPD_GC_V6_P03_R1_RUNTIME_CHECKPOINT.zip'
         sha256 = $checkpointHash
         source_manifest_sha256 = $sourceManifestHash
         excluded_from_review_bundle = $true
@@ -99,6 +101,7 @@ $manifest = [ordered]@{
         skill_schema_version = '0.2'
         contract_version = '0.2-final'
         price_version = 'v6-p03-1'
+        runtime_version = 'v6-p03-r1-1'
     }
     frozen_documents = [ordered]@{
         audit_sha256 = (Get-FileHash -LiteralPath $auditPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -110,7 +113,7 @@ $manifest = [ordered]@{
     gates = $gateResults.gates
     checkpoint_gate_status = $checkpointGateResults.status
     checkpoint_gates = $checkpointGateResults.gates
-    completion_matrix_source = 'core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/catalog/P03CompletionMatrix.java'
+    completion_evidence_source = 'core/src/test/java/com/shatteredpixel/shatteredpixeldungeon/rules/contract/v6/P03ImplementationEvidence.java'
     limitations = @(
         'Only Active/Always, DirectDamage, Direct delivery, SelectedActor/Single/enemy-exclude-self targeting, NoCost, Primary, and optional ImmediateOnPrimarySuccess secondary are player-exposed and IMPLEMENTED.',
         'All other Contract variants remain DECLARED, DEFERRED, or UNSUPPORTED and are not player-exposed.',
@@ -123,11 +126,11 @@ $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $stag
 
 $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt')) | Where-Object { $_ }).Count
 @(
-    '# Gameplay Components v6 — P03 实施报告'
+    '# Gameplay Components v6 — P03-R1 实施报告'
     ''
     '## 结论'
     ''
-    '- P03 working-tree Gate：PASS。'
+    '- P03-R1 working-tree Gate：PASS。'
     '- 完整 checkpoint 解压副本 Gate：PASS。'
     '- 未进入 P04；未 push、未 tag。'
     '- accepted=false，next_phase_allowed=false。'
@@ -136,6 +139,7 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     ''
     "- 分支：$branch"
     "- 唯一 P02 Git 基线 / 累计 Diff 基线：$base"
+    "- P03-R1 直接父提交：$expectedParent"
     "- P02 parent checkpoint SHA-256：$parentCheckpointHash"
     "- P03 候选提交：$head"
     "- P03 候选 source tree：$candidateSourceTree"
@@ -147,10 +151,11 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     '- Contract Variant 由独立 descriptor catalog 标注 IMPLEMENTED/DEFERRED/UNSUPPORTED；只有证据完整的 P03 纵切对玩家暴露。'
     '- UI 与 Headless 共同使用专用 BuilderCommand、BuilderReducer 与 SkillDraftEditor；不允许 generic effect field bag。'
     '- Structural、Compatibility、Runtime Capability 三层纯校验器不修改 Spec；Finalize 与 Compiler 均 fail closed。'
-    '- ClassCompilePlan、immutable compiled skill、typed executor registry、preflight/result/trace 分离；Registry 不依赖 FormSchema。'
-    '- DirectDamage executor 调用真实 SPD Char.damage；支持 Primary 与 primary 成功后的 Immediate Secondary。'
-    '- No target、blocked、unsupported、missing executor 具有不同结果；未知 Variant save/load 失败且无 Standard Damage fallback。'
-    '- 每个玩家可见 IMPLEMENTED Variant 都有完成矩阵证据 ID、双语 formatter、唯一 price key 与 ledger 条目。'
+    '- CompiledSkill 是独立不可变运行时节点图；ClassCompilePlan 带 build/hash/schema/price/runtime 元数据，并区分 PREVIEW、PARTIAL、EXECUTABLE。'
+    '- typed executor preflight 在 cost commit 前完成，明确区分 missing executor、type mismatch、target unavailable、immune 与 unsupported parameters，失败零 mutation。'
+    '- 已安装到真实 Hero 的 finalized v6 build 通过 RuleHooks.triggerActive 进入 v6 compile plan、V6RuleRuntime 与 typed executor。'
+    '- DirectDamage 复用 RuleHooks 的 damage causality/recursion guard；真实击杀归属 Hero，ON_KILL 仅触发一次且事件、原因与 originating skill 可追踪。'
+    '- Completion evidence 已移至测试 QA 层；生产 Compiler/Plan/Runtime 不依赖测试矩阵或测试方法字符串。'
     '- canonical save/load 覆盖全部 P03 typed 字段；v5 skill migration placeholder 明确返回 unsupported typed mapping。'
     ''
     '## Gate 证据'
@@ -158,7 +163,7 @@ $changedCount = ((Get-Content -LiteralPath (Join-Path $stage 'CHANGED_FILES.txt'
     '- 命令、退出码、耗时与日志：P03_GATE_RESULTS.json、logs/working-tree/。'
     '- checkpoint 解压复验：CHECKPOINT_UNPACK_VERIFICATION.md、CHECKPOINT_P03_GATE_RESULTS.json、logs/checkpoint-unpacked/。'
     '- Builder command trace、canonical build、真实 runtime trace：artifacts/。'
-    '- Completion rows：P03CompletionMatrix.java，对应实际 JUnit 类与方法名。'
+    '- Test-only completion evidence 会解析并实际运行每个证据 JUnit 方法；删除或拼错 ID 会使 Gate 失败。'
     ''
     '## Deferred / Unsupported'
     ''
