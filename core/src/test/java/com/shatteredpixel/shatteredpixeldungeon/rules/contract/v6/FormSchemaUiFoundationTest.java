@@ -18,7 +18,7 @@ import static org.junit.Assert.*;
 
 public class FormSchemaUiFoundationTest {
 	@Test public void everyP02DeclarationHasTypedSchemaAndComplexFieldKinds() {
-		assertEquals(10,V6FormSchemas.all().size());
+		assertEquals(11,V6FormSchemas.all().size());
 		for(String key:Arrays.asList("RESOURCE","MARK","MODE_GROUP","MODE","ENTITY_CAPACITY","ENTITY","ABILITY_POOL","PROPERTY","RECIPE","CONTRACT_NODE"))assertFalse(V6FormSchemas.require(key).fields().isEmpty());
 		assertTrue(V6FormSchemas.require("RESOURCE").requireField("maximum") instanceof NumberFieldSchema);
 		assertTrue(V6FormSchemas.require("MARK").requireField("kind") instanceof EnumFieldSchema);

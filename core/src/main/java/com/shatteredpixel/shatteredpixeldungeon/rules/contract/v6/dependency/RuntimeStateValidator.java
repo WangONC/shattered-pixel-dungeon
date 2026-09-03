@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.Stabl
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ContractNodeSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.StableTarget;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.*;
 
 import java.util.ArrayList;
@@ -107,9 +108,8 @@ public final class RuntimeStateValidator {
 			StableTarget target = find(build, value.nodeId());
 			if (target == null) result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.UNRESOLVED,
 					value.nodeId(), "runtime.counter.node_missing"));
-			else if (!(target instanceof ContractNodeSpec)
-					|| (((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.SKILL
-					&& ((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.OPERATION)) {
+			else if (!(target instanceof SkillSpec) && (!(target instanceof ContractNodeSpec)
+					|| ((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.OPERATION)) {
 				result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.HARD_CONFLICT,
 						value.nodeId(), "runtime.counter.wrong_node_type"));
 			}

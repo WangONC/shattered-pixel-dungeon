@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.Displ
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -33,6 +34,7 @@ final class BuilderDraftEditor {
 		else if (target instanceof AbilityPoolSpec) out.abilityPools(replace(build.abilityPools(), id, abilityPool((AbilityPoolSpec) target, fieldKey, rawValue)));
 		else if (target instanceof PropertySpec) out.properties(replace(build.properties(), id, property((PropertySpec) target, fieldKey, rawValue)));
 		else if (target instanceof SynthesisRecipeSpec) out.recipes(replace(build.recipes(), id, recipe((SynthesisRecipeSpec) target, fieldKey, rawValue)));
+		else if (target instanceof SkillSpec) throw new IllegalArgumentException("typed skills require dedicated Skill Builder commands");
 		else if (target instanceof ContractNodeSpec) {
 			ContractNodeSpec node = contractNode((ContractNodeSpec) target, fieldKey, rawValue);
 			replaceNode(out, build, node);
@@ -103,6 +105,7 @@ final class BuilderDraftEditor {
 		if (target instanceof AbilityPoolSpec) return V6FormSchemas.ABILITY_POOL;
 		if (target instanceof PropertySpec) return V6FormSchemas.PROPERTY;
 		if (target instanceof SynthesisRecipeSpec) return V6FormSchemas.RECIPE;
+		if (target instanceof SkillSpec) return ((SkillSpec)target).typed()?V6FormSchemas.SKILL:V6FormSchemas.CONTRACT_NODE;
 		if (target instanceof ContractNodeSpec) return V6FormSchemas.CONTRACT_NODE;
 		throw new IllegalArgumentException("unknown declaration type " + target.getClass().getName());
 	}
@@ -127,7 +130,7 @@ final class BuilderDraftEditor {
 	private static PropertySpec property(PropertySpec v,String key,String raw){PropertySpec.PropertyValueKind kind=v.valueKind();int max=v.maximumStack();if("value_kind".equals(key))kind=en(PropertySpec.PropertyValueKind.class,raw);else if("maximum_stack".equals(key))max=integer(raw);else unknown(key);return new PropertySpec(v.id(),v.displayName(),kind,max);}
 	private static SynthesisRecipeSpec recipe(SynthesisRecipeSpec v,String key,String raw){if(!"output_variant".equals(key))unknown(key);return new SynthesisRecipeSpec(v.id(),v.displayName(),v.inputs(),raw,v.implementationState());}
 	private static ContractNodeSpec contractNode(ContractNodeSpec v,String key,String raw){if(!"variant_key".equals(key))unknown(key);return new ContractNodeSpec(v.id(),v.displayName(),v.nodeKind(),raw,v.implementationState());}
-	private static void replaceNode(ClassBuildSpec.Builder out,ClassBuildSpec build,ContractNodeSpec node){switch(node.nodeKind()){case COMPONENT:out.classComponents(replace(build.classComponents(),node.id(),node));break;case CONSTRAINT:out.classConstraints(replace(build.classConstraints(),node.id(),node));break;case OPERATION:out.classOperations(replace(build.classOperations(),node.id(),node));break;case SKILL:out.skills(replace(build.skills(),node.id(),node));break;default:throw new AssertionError(node.nodeKind());}}
+	private static void replaceNode(ClassBuildSpec.Builder out,ClassBuildSpec build,ContractNodeSpec node){switch(node.nodeKind()){case COMPONENT:out.classComponents(replace(build.classComponents(),node.id(),node));break;case CONSTRAINT:out.classConstraints(replace(build.classConstraints(),node.id(),node));break;case OPERATION:out.classOperations(replace(build.classOperations(),node.id(),node));break;case SKILL:throw new IllegalArgumentException("generic skill nodes are read-only compatibility envelopes");default:throw new AssertionError(node.nodeKind());}}
 	private static <T extends StableTarget> List<T> replace(List<T> values,StableId id,T replacement){List<T> result=new ArrayList<>();boolean found=false;for(T value:values){if(value.id().equals(id)){result.add(replacement);found=true;}else result.add(value);}if(!found)throw new IllegalArgumentException("declaration not found: "+id.value());return result;}
 
 	private static void validate(FormFieldSchema schema,String raw){if(schema.kind()==FormFieldSchema.Kind.NUMBER){NumberFieldSchema number=(NumberFieldSchema)schema;int value=integer(raw);if(value<number.minimum()||value>number.maximum())throw new IllegalArgumentException("number outside schema bounds: "+schema.fieldKey());}else if(schema.kind()==FormFieldSchema.Kind.ENUM){if(!((EnumFieldSchema)schema).contains(raw))throw new IllegalArgumentException("enum value outside schema: "+raw);}else if(schema.kind()==FormFieldSchema.Kind.ENUM_LIST){EnumListFieldSchema list=(EnumListFieldSchema)schema;java.util.LinkedHashSet<String> values=new java.util.LinkedHashSet<>();for(String part:raw.split(",")){String value=part.trim();if(value.isEmpty()||!list.optionKeys().contains(value)||!values.add(value))throw new IllegalArgumentException("enum-list value outside schema or duplicated: "+value);}if(values.size()<list.minimumSelections())throw new IllegalArgumentException("too few enum-list selections: "+schema.fieldKey());}else if(schema.kind()==FormFieldSchema.Kind.BOOLEAN){bool(raw);}else if(schema.kind()==FormFieldSchema.Kind.TEXT){TextFieldSchema text=(TextFieldSchema)schema;if(schema.required()&&raw.isEmpty()||raw.codePointCount(0,raw.length())>text.maximumCodePoints())throw new IllegalArgumentException("text outside schema bounds: "+schema.fieldKey());}else throw new IllegalArgumentException("field cannot be set as a scalar: "+schema.fieldKey());}

@@ -1,6 +1,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
 import java.util.ArrayList;import java.util.HashMap;import java.util.List;import java.util.Map;
 
 /** Structural validation is also read-only and never normalizes a draft. */
@@ -32,5 +33,5 @@ public final class ClassBuildValidator {
 		if(state==ImplementationState.UNSUPPORTED||state==ImplementationState.DEFERRED)
 			result.add(new DependencyDiagnostic(owner,path,DependencyState.UNSUPPORTED,owner,"node.unsupported"));
 	}
-	private static String expectedPrefix(StableTarget target){if(target instanceof ContractNodeSpec){switch(((ContractNodeSpec)target).nodeKind()){case COMPONENT:return"component";case CONSTRAINT:return"constraint";case OPERATION:return"op";case SKILL:return"skill";default:throw new AssertionError();}}switch(target.refKind()){case RESOURCE:return"res";case MARK:return"mark";case MODE_GROUP:return"modegrp";case MODE:return"mode";case ENTITY:return"entity";case CAPACITY:return"capacity";case ABILITY_POOL:return"abilitypool";case PROPERTY:return"property";case RECIPE:return"recipe";case COMPONENT:return"component";default:throw new AssertionError();}}
+	private static String expectedPrefix(StableTarget target){if(target instanceof SkillSpec)return"skill";if(target instanceof ContractNodeSpec){switch(((ContractNodeSpec)target).nodeKind()){case COMPONENT:return"component";case CONSTRAINT:return"constraint";case OPERATION:return"op";case SKILL:return"skill";default:throw new AssertionError();}}switch(target.refKind()){case RESOURCE:return"res";case MARK:return"mark";case MODE_GROUP:return"modegrp";case MODE:return"mode";case ENTITY:return"entity";case CAPACITY:return"capacity";case ABILITY_POOL:return"abilitypool";case PROPERTY:return"property";case RECIPE:return"recipe";case COMPONENT:return"component";default:throw new AssertionError();}}
 }

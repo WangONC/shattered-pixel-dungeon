@@ -12,7 +12,7 @@ public final class StableId implements Comparable<StableId> {
 	private static final Set<String> PREFIXES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
 			"build", "res", "mark", "mode", "modegrp", "entity", "capacity", "skill", "effect",
 			"component", "op", "abilitypool", "ability", "property", "recipe", "constraint", "link",
-			"snapshot")));
+			"snapshot", "trigger", "condition", "chain", "delivery", "targeting", "modifier", "cost")));
 	private final String value;
 
 	private StableId(String value) { this.value = value; }

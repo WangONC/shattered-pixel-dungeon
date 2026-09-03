@@ -9,6 +9,9 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalBuildCodec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalLoadResult;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.EffectExecutorRegistry;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.validation.SkillValidation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,9 +25,10 @@ public final class BuilderReducer {
 	private final IdGenerator ids;
 	private final BuilderBudgetPolicy budgetPolicy;
 	private final BuilderDraftEditor fields = new BuilderDraftEditor();
+	private final SkillDraftEditor skillFields = new SkillDraftEditor();
 	private final CanonicalBuildCodec codec = new CanonicalBuildCodec();
 
-	public BuilderReducer(IdGenerator ids) { this(ids, new BuilderBudgetPolicy.DeclarationOnly()); }
+	public BuilderReducer(IdGenerator ids) { this(ids, new BuilderBudgetPolicy.P03TypedSkill()); }
 	public BuilderReducer(IdGenerator ids, BuilderBudgetPolicy budgetPolicy) {
 		if (ids == null || budgetPolicy == null) throw new IllegalArgumentException("id generator and budget policy are required");
 		this.ids = ids; this.budgetPolicy = budgetPolicy;
@@ -108,7 +112,29 @@ public final class BuilderReducer {
 			out.addClassOperation(node(build,"op",value.displayName(),ContractNodeSpec.NodeKind.OPERATION,value.variantKey()));
 		} else if (command instanceof BuilderCommand.CreateSkill) {
 			BuilderCommand.CreateSkill value=(BuilderCommand.CreateSkill)command;
-			out.addSkill(node(build,"skill",value.displayName(),ContractNodeSpec.NodeKind.SKILL,value.variantKey()));
+			if(SkillSpec.VARIANT.equals(value.variantKey())){
+				out.addSkill(new SkillSpec(next("skill",build),DisplayName.of(value.displayName()),
+						new UnconfiguredTriggerSpec(next("trigger",build)),new UnconfiguredConditionExpr(),
+						new EffectChainSpec(next("chain",build),new UnconfiguredEffectSpec(next("effect",build),null),null),
+						new UnconfiguredDeliverySpec(next("delivery",build)),
+						new TargetingSpec(next("targeting",build),new UnconfiguredSelectorSpec(),new UnconfiguredCoverageSpec(),
+								new UnconfiguredEntityFilterSpec(),1,1,TargetingSpec.LineOfSightPolicy.DELIVERY,TargetingSpec.TargetOrdering.DISTANCE_CELL_ACTOR_ID),
+						new UnconfiguredModifierSpec(next("modifier",build)),new UnconfiguredCostSpec(next("cost",build)),
+						new UnconfiguredSkillConstraintSpec(next("constraint",build))));
+			}else out.addSkill(SkillSpec.deferredEnvelope(next("skill",build),DisplayName.of(value.displayName()),value.variantKey(),ImplementationState.DEFERRED));
+		} else if(command instanceof BuilderCommand.SelectTriggerVariant){BuilderCommand.SelectTriggerVariant value=(BuilderCommand.SelectTriggerVariant)command;return skillFields.selectTrigger(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SelectConditionVariant){BuilderCommand.SelectConditionVariant value=(BuilderCommand.SelectConditionVariant)command;return skillFields.selectCondition(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SelectEffectFamily){BuilderCommand.SelectEffectFamily value=(BuilderCommand.SelectEffectFamily)command;return skillFields.selectEffectFamily(build,value.skillId(),value.effectSlot(),value.familyKey(),next("effect",build));
+		} else if(command instanceof BuilderCommand.SelectEffectVariant){BuilderCommand.SelectEffectVariant value=(BuilderCommand.SelectEffectVariant)command;return skillFields.selectEffectVariant(build,value.skillId(),value.effectSlot(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetTargetingSelector){BuilderCommand.SetTargetingSelector value=(BuilderCommand.SetTargetingSelector)command;return skillFields.setTargetingSelector(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetTargetingCoverage){BuilderCommand.SetTargetingCoverage value=(BuilderCommand.SetTargetingCoverage)command;return skillFields.setTargetingCoverage(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetTargetingFilter){BuilderCommand.SetTargetingFilter value=(BuilderCommand.SetTargetingFilter)command;return skillFields.setTargetingFilter(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetDelivery){BuilderCommand.SetDelivery value=(BuilderCommand.SetDelivery)command;return skillFields.setDelivery(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetModifier){BuilderCommand.SetModifier value=(BuilderCommand.SetModifier)command;return skillFields.setModifier(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetCost){BuilderCommand.SetCost value=(BuilderCommand.SetCost)command;return skillFields.setCost(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetSkillConstraint){BuilderCommand.SetSkillConstraint value=(BuilderCommand.SetSkillConstraint)command;return skillFields.setConstraint(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetTypedSkillField){BuilderCommand.SetTypedSkillField value=(BuilderCommand.SetTypedSkillField)command;return skillFields.setField(build,value.skillId(),value.ownerPath(),value.variantKey(),value.fieldKey(),value.value());
+		} else if(command instanceof BuilderCommand.SetTypedSkillReference){BuilderCommand.SetTypedSkillReference value=(BuilderCommand.SetTypedSkillReference)command;return skillFields.setReference(build,value.skillId(),value.ownerPath(),value.variantKey(),value.fieldKey(),value.reference());
 		} else if (command instanceof BuilderCommand.SetFieldValue) {
 			BuilderCommand.SetFieldValue value=(BuilderCommand.SetFieldValue)command;
 			return fields.setField(build,value.ownerId(),value.variantKey(),value.fieldKey(),value.value());
@@ -144,7 +170,9 @@ public final class BuilderReducer {
 	private BuilderState refresh(ClassBuildSpec draft,BuilderNavigationState navigation,UndoRedoState history,
 			Map<String,String> saves,List<String> commandDiagnostics,FinalizationReport finalization){
 		DependencyReport dependencies=new DependencyResolver().resolve(draft);
-		BuilderValidationReport validation=new BuilderValidationReport(new ClassBuildValidator().validate(draft));
+		List<DependencyDiagnostic> validationDiagnostics=new ArrayList<>(new ClassBuildValidator().validate(draft).diagnostics());
+		for(SkillSpec skill:draft.skills())validationDiagnostics.addAll(SkillValidation.validate(skill,EffectExecutorRegistry.standard()).diagnostics());
+		BuilderValidationReport validation=new BuilderValidationReport(new DependencyReport(validationDiagnostics));
 		return new BuilderState(draft,dependencies,validation,budgetPolicy.evaluate(draft),navigation,history,saves,commandDiagnostics,finalization);
 	}
 
@@ -155,11 +183,12 @@ public final class BuilderReducer {
 			if(target.implementationState()==ImplementationState.PLAYER_EXPOSED)diagnostics.add("runtime.unsupported_player_exposed:"+target.id().value());
 			else if(target.implementationState()==ImplementationState.UNSUPPORTED||target.implementationState()==ImplementationState.LEGACY_ONLY)diagnostics.add("runtime.unsupported:"+target.id().value());
 		}
+		for(SkillSpec skill:state.draft().skills())if(skill.typed()&&skill.implementationState()!=ImplementationState.IMPLEMENTED)diagnostics.add("runtime.skill_not_implemented:"+skill.id().value());
 		if(state.budget().overBudget())diagnostics.add("budget.over_limit:"+state.budget().spent()+">"+state.budget().limit());
 		if(!hasImplementedAction(state.draft()))diagnostics.add("finalization.no_gameplay_action");
 		return new FinalizationReport(diagnostics.isEmpty()?state.draft():null,diagnostics);
 	}
-	private static boolean hasImplementedAction(ClassBuildSpec build){for(ContractNodeSpec value:build.classComponents())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;for(ContractNodeSpec value:build.classOperations())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;for(ContractNodeSpec value:build.skills())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;return false;}
+	private static boolean hasImplementedAction(ClassBuildSpec build){for(ContractNodeSpec value:build.classComponents())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;for(ContractNodeSpec value:build.classOperations())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;for(SkillSpec value:build.skills())if(value.implementationState()==ImplementationState.IMPLEMENTED)return true;return false;}
 	private ContractNodeSpec node(ClassBuildSpec build,String prefix,String name,ContractNodeSpec.NodeKind kind,String variant){return new ContractNodeSpec(next(prefix,build),DisplayName.of(name),kind,variant,ImplementationState.DEFERRED);}
 	private StableId next(String prefix,ClassBuildSpec build){for(int attempt=0;attempt<1024;attempt++){StableId id=ids.nextId(prefix);boolean used=build.buildId().equals(id);for(StableTarget target:build.allTargets())used|=target.id().equals(id);if(!used)return id;}throw new IllegalStateException("id generator did not produce a unique "+prefix+" id");}
 	private static void requireKind(TypedRef ref,RefKind expected){if(ref.kind()!=expected)throw new IllegalArgumentException("reference kind mismatch: expected "+expected+" got "+ref.kind());}

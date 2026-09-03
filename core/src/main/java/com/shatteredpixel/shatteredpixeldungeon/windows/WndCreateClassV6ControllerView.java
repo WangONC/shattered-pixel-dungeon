@@ -47,6 +47,8 @@ final class WndCreateClassV6ControllerView {
 				new NamedCommand(){@Override public BuilderCommand create(String name){return new BuilderCommand.CreateProperty(name);}}));
 		actions.add(create("+ Recipe", "Create a deferred Synthesis Recipe shell", controller, "Recipe",
 				new NamedCommand(){@Override public BuilderCommand create(String name){return new BuilderCommand.CreateRecipe(name,"P02_DEFERRED_OUTPUT");}}));
+		actions.add(create("+ Skill", "Create a typed P03 active skill", controller, "Skill",
+				new NamedCommand(){@Override public BuilderCommand create(String name){return new BuilderCommand.CreateSkill(name);}}));
 
 		for (final StableTarget target : controller.state().draft().allTargets()) {
 			actions.add(new Action(target.displayName().text(), shortId(target.id().value()), true, "",
@@ -62,7 +64,7 @@ final class WndCreateClassV6ControllerView {
 				"Save the UI draft slot first.", new Runnable(){@Override public void run(){controller.dispatch(new BuilderCommand.LoadDraft("ui"));showRoot(controller);}}));
 		actions.add(new Action("Finalize", "Run fail-closed finalization", true, "",
 				new Runnable(){@Override public void run(){controller.dispatch(new BuilderCommand.FinalizeBuild());showRoot(controller);}}));
-		showActions("Gameplay Components v6", "P02 command-based builder", controller, actions, new Runnable(){@Override public void run(){}});
+		showActions("Gameplay Components v6", "P03 typed skill builder", controller, actions, new Runnable(){@Override public void run(){}});
 	}
 
 	private static Action create(String label, String detail, final BuilderFormController controller,

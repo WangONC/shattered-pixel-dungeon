@@ -2,6 +2,7 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.DisplayName;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,7 +21,7 @@ public final class ClassBuildSpec {
 	private final List<AbilityPoolSpec> abilityPools; private final List<PropertySpec> properties;
 	private final List<SynthesisRecipeSpec> recipes;
 	private final List<ContractNodeSpec> classComponents; private final List<ContractNodeSpec> classConstraints;
-	private final List<ContractNodeSpec> classOperations; private final List<ContractNodeSpec> skills;
+	private final List<ContractNodeSpec> classOperations; private final List<SkillSpec> skills;
 	private final DeferredSectionSpec startingKit; private final DeferredSectionSpec progression;
 	private final BudgetMetadata budgetMetadata;
 
@@ -44,7 +45,7 @@ public final class ClassBuildSpec {
 	public List<AbilityPoolSpec> abilityPools(){return abilityPools;} public List<PropertySpec> properties(){return properties;}
 	public List<SynthesisRecipeSpec> recipes(){return recipes;} public List<ContractNodeSpec> classComponents(){return classComponents;}
 	public List<ContractNodeSpec> classConstraints(){return classConstraints;} public List<ContractNodeSpec> classOperations(){return classOperations;}
-	public List<ContractNodeSpec> skills(){return skills;} public DeferredSectionSpec startingKit(){return startingKit;}
+	public List<SkillSpec> skills(){return skills;} public DeferredSectionSpec startingKit(){return startingKit;}
 	public DeferredSectionSpec progression(){return progression;} public BudgetMetadata budgetMetadata(){return budgetMetadata;}
 
 	public List<StableTarget> allTargets(){
@@ -65,7 +66,7 @@ public final class ClassBuildSpec {
 		private List<AbilityPoolSpec> abilityPools=new ArrayList<>();private List<PropertySpec> properties=new ArrayList<>();
 		private List<SynthesisRecipeSpec> recipes=new ArrayList<>();private List<ContractNodeSpec> classComponents=new ArrayList<>();
 		private List<ContractNodeSpec> classConstraints=new ArrayList<>();private List<ContractNodeSpec> classOperations=new ArrayList<>();
-		private List<ContractNodeSpec> skills=new ArrayList<>();
+		private List<SkillSpec> skills=new ArrayList<>();
 		private DeferredSectionSpec startingKit=new DeferredSectionSpec("starting_kit",ImplementationState.DEFERRED);
 		private DeferredSectionSpec progression=new DeferredSectionSpec("progression",ImplementationState.DEFERRED);
 		private BudgetMetadata budgetMetadata=new BudgetMetadata("",0);
@@ -90,7 +91,10 @@ public final class ClassBuildSpec {
 		public Builder classComponents(List<ContractNodeSpec> value){classComponents=new ArrayList<>(value);return this;}public Builder addClassComponent(ContractNodeSpec value){classComponents.add(value);return this;}
 		public Builder classConstraints(List<ContractNodeSpec> value){classConstraints=new ArrayList<>(value);return this;}public Builder addClassConstraint(ContractNodeSpec value){classConstraints.add(value);return this;}
 		public Builder classOperations(List<ContractNodeSpec> value){classOperations=new ArrayList<>(value);return this;}public Builder addClassOperation(ContractNodeSpec value){classOperations.add(value);return this;}
-		public Builder skills(List<ContractNodeSpec> value){skills=new ArrayList<>(value);return this;}public Builder addSkill(ContractNodeSpec value){skills.add(value);return this;}
+		public Builder skills(List<SkillSpec> value){skills=new ArrayList<>(value);return this;}
+		public Builder addSkill(SkillSpec value){skills.add(value);return this;}
+		/** P01/P02 compatibility: convert a non-executable SKILL envelope without retaining a generic node. */
+		public Builder addSkill(ContractNodeSpec value){skills.add(SkillSpec.fromLegacyEnvelope(value));return this;}
 		public Builder startingKit(DeferredSectionSpec value){startingKit=value;return this;}public Builder progression(DeferredSectionSpec value){progression=value;return this;}
 		public Builder budgetMetadata(BudgetMetadata value){budgetMetadata=value;return this;}
 		public ClassBuildSpec build(){return new ClassBuildSpec(this);}

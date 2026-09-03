@@ -1,6 +1,6 @@
 /**
- * Gameplay Components v6 contract-side namespace. P01 implements identity, declaration,
- * dependency, canonical save, and declaration/runtime-state separation here. Reducers, typed
- * skill compilation, effect/entity runtime, progression, and profession domains are not enabled.
+ * Gameplay Components v6 contract-side namespace. P03 adds the first evidence-complete typed
+ * skill slice, compiler, executor registry, and real SPD direct-damage runtime while later
+ * effect families, progression, and profession domains remain unavailable.
  */
 package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6;

@@ -29,6 +29,7 @@ public final class V6FormSchemas {
 	public static final String PROPERTY = "PROPERTY";
 	public static final String RECIPE = "RECIPE";
 	public static final String CONTRACT_NODE = "CONTRACT_NODE";
+	public static final String SKILL = "SKILL_V0_2";
 
 	private static final Map<String, FormSchema> SCHEMAS = createSchemas();
 
@@ -79,6 +80,19 @@ public final class V6FormSchemas {
 				new TextFieldSchema("output_variant", label("output_variant"), true, 64), diagnostic()));
 		result.put(CONTRACT_NODE, schema(CONTRACT_NODE, text("display_name"),
 				new TextFieldSchema("variant_key", label("variant_key"), true, 64), diagnostic()));
+		result.put(SKILL, schema(SKILL, text("display_name"),
+				enumerationKeys("activation_variant","ACTIVE"), enumerationKeys("condition_variant","ALWAYS"),
+				enumerationKeys("effect_primary_family","DAMAGE"), enumerationKeys("effect_primary_variant","DIRECT_DAMAGE"),
+				number("effect_primary_amount",1,999,1), enumerationKeys("effect_primary_damage_type","UNTYPED"),
+				enumerationKeys("effect_primary_defense_policy","SPD_NATIVE"),
+				enumerationKeys("effect_secondary_family","NONE","DAMAGE"), enumerationKeys("effect_secondary_variant","DIRECT_DAMAGE"),
+				number("effect_secondary_amount",1,999,1), enumerationKeys("effect_secondary_activation","IMMEDIATE_ON_PRIMARY_SUCCESS"),
+				enumerationKeys("delivery_variant","DIRECT"), bool("delivery_requires_line_of_sight"),
+				enumerationKeys("targeting_selector","SELECTED_ACTOR"), enumerationKeys("targeting_coverage","SINGLE"),
+				enumerationKeys("targeting_filter","RELATION_ENEMY_EXCLUDE_SELF"), number("targeting_range",1,20,1),
+				number("targeting_maximum_targets",1,1,1), enumerationKeys("targeting_line_of_sight","DELIVERY"),
+				enumerationKeys("targeting_ordering","DISTANCE_CELL_ACTOR_ID"), enumerationKeys("modifier_variant","NONE"),
+				enumerationKeys("cost_variant","NO_COST"), enumerationKeys("constraint_variant","NONE"), diagnostic()));
 		return Collections.unmodifiableMap(result);
 	}
 
@@ -97,6 +111,9 @@ public final class V6FormSchemas {
 		List<String> names = new ArrayList<>();
 		for (Enum<?> value : values) names.add(value.name());
 		return new EnumFieldSchema(key, label(key), true, names);
+	}
+	private static EnumFieldSchema enumerationKeys(String key,String... values) {
+		return new EnumFieldSchema(key,label(key),true,Arrays.asList(values));
 	}
 	private static EnumListFieldSchema enumerationList(String key, Enum<?>[] values) {
 		List<String> names = new ArrayList<>();

@@ -103,6 +103,7 @@ public interface BuilderCommand {
 	}
 	final class CreateSkill extends NodeCreate {
 		public CreateSkill(String displayName, String variantKey) { super(displayName, variantKey); }
+		public CreateSkill(String displayName) { this(displayName, "SKILL_V0_2"); }
 		@Override public String typeKey() { return "CreateSkill"; }
 	}
 	abstract class NodeCreate extends NamedCreate {
@@ -112,6 +113,93 @@ public interface BuilderCommand {
 		}
 		public final String variantKey() { return variantKey; }
 		@Override public List<String> traceArguments() { return Arrays.asList(displayName(), variantKey); }
+	}
+
+	final class SelectTriggerVariant extends StringCommand2 {
+		public SelectTriggerVariant(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SelectTriggerVariant";}
+	}
+	final class SelectConditionVariant extends StringCommand2 {
+		public SelectConditionVariant(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SelectConditionVariant";}
+	}
+	final class SelectEffectFamily extends StringCommand3 {
+		public SelectEffectFamily(String skillId,String effectSlot,String familyKey){super(skillId,effectSlot,familyKey);}
+		public String skillId(){return first();} public String effectSlot(){return second();} public String familyKey(){return third();}
+		@Override public String typeKey(){return "SelectEffectFamily";}
+	}
+	final class SelectEffectVariant extends StringCommand3 {
+		public SelectEffectVariant(String skillId,String effectSlot,String variantKey){super(skillId,effectSlot,variantKey);}
+		public String skillId(){return first();} public String effectSlot(){return second();} public String variantKey(){return third();}
+		@Override public String typeKey(){return "SelectEffectVariant";}
+	}
+	final class SetTargetingSelector extends StringCommand2 {
+		public SetTargetingSelector(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetTargetingSelector";}
+	}
+	final class SetTargetingCoverage extends StringCommand2 {
+		public SetTargetingCoverage(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetTargetingCoverage";}
+	}
+	final class SetTargetingFilter extends StringCommand2 {
+		public SetTargetingFilter(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetTargetingFilter";}
+	}
+	final class SetDelivery extends StringCommand2 {
+		public SetDelivery(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetDelivery";}
+	}
+	final class SetModifier extends StringCommand2 {
+		public SetModifier(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetModifier";}
+	}
+	final class SetCost extends StringCommand2 {
+		public SetCost(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetCost";}
+	}
+	final class SetSkillConstraint extends StringCommand2 {
+		public SetSkillConstraint(String skillId,String variantKey){super(skillId,variantKey);}
+		public String skillId(){return first();} public String variantKey(){return second();}
+		@Override public String typeKey(){return "SetSkillConstraint";}
+	}
+	final class SetTypedSkillField implements BuilderCommand {
+		private final String skillId,ownerPath,variantKey,fieldKey,value;
+		public SetTypedSkillField(String skillId,String ownerPath,String variantKey,String fieldKey,String value){
+			this.skillId=required(skillId,"skill id");this.ownerPath=required(ownerPath,"owner path");
+			this.variantKey=required(variantKey,"variant key");this.fieldKey=required(fieldKey,"field key");this.value=required(value,"field value");
+		}
+		public String skillId(){return skillId;}public String ownerPath(){return ownerPath;}public String variantKey(){return variantKey;}public String fieldKey(){return fieldKey;}public String value(){return value;}
+		@Override public String typeKey(){return "SetTypedSkillField";}
+		@Override public List<String> traceArguments(){return Arrays.asList(skillId,ownerPath,variantKey,fieldKey,value);}
+	}
+	final class SetTypedSkillReference implements BuilderCommand {
+		private final String skillId,ownerPath,variantKey,fieldKey;private final TypedRef reference;
+		public SetTypedSkillReference(String skillId,String ownerPath,String variantKey,String fieldKey,TypedRef reference){
+			this.skillId=required(skillId,"skill id");this.ownerPath=required(ownerPath,"owner path");this.variantKey=required(variantKey,"variant key");this.fieldKey=required(fieldKey,"field key");this.reference=required(reference,"typed reference");
+		}
+		public String skillId(){return skillId;}public String ownerPath(){return ownerPath;}public String variantKey(){return variantKey;}public String fieldKey(){return fieldKey;}public TypedRef reference(){return reference;}
+		@Override public String typeKey(){return "SetTypedSkillReference";}
+		@Override public List<String> traceArguments(){return withRef(new String[]{skillId,ownerPath,variantKey,fieldKey},reference);}
+	}
+	abstract class StringCommand2 implements BuilderCommand {
+		private final String first,second;
+		StringCommand2(String first,String second){this.first=required(first,"first argument");this.second=required(second,"second argument");}
+		final String first(){return first;}final String second(){return second;}
+		@Override public List<String> traceArguments(){return Arrays.asList(first,second);}
+	}
+	abstract class StringCommand3 implements BuilderCommand {
+		private final String first,second,third;
+		StringCommand3(String first,String second,String third){this.first=required(first,"first argument");this.second=required(second,"second argument");this.third=required(third,"third argument");}
+		final String first(){return first;}final String second(){return second;}final String third(){return third;}
+		@Override public List<String> traceArguments(){return Arrays.asList(first,second,third);}
 	}
 
 	final class SetFieldValue implements BuilderCommand {

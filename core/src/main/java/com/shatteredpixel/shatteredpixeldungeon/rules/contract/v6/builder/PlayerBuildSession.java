@@ -18,8 +18,8 @@ public final class PlayerBuildSession {
 	public static PlayerBuildSession empty(IdGenerator ids) {
 		if (ids == null) throw new IllegalArgumentException("id generator is required");
 		ClassBuildSpec draft=ClassBuildSpec.builder(ids.nextId("build"),DisplayName.of("New Build"))
-				.budgetMetadata(new BudgetMetadata("p02-unpriced",0)).build();
-		BuilderReducer reducer=new BuilderReducer(ids);
+				.budgetMetadata(new BudgetMetadata(BuilderBudgetPolicy.P03TypedSkill.PRICE_VERSION,20)).build();
+		BuilderReducer reducer=new BuilderReducer(ids,new BuilderBudgetPolicy.P03TypedSkill());
 		return new PlayerBuildSession(reducer,reducer.initial(draft));
 	}
 	public static PlayerBuildSession fromDraft(IdGenerator ids,ClassBuildSpec draft){BuilderReducer reducer=new BuilderReducer(ids);return new PlayerBuildSession(reducer,reducer.initial(draft));}
