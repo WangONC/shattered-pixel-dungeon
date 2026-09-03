@@ -6,6 +6,8 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency.Dep
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuildSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ImplementationState;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.StableTarget;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ResourceSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.component.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,7 +29,9 @@ public final class ExecutableBuildAdmissionPolicy {
 			// excludes the empty StartingKit/Progression placeholder diagnostics.
 			if (!"node.unsupported".equals(diagnostic.messageKey())) result.add(toCompile(diagnostic));
 		}
-		rejectRuntimeMissing(result, "resources", build.resources());
+		// ResourceSpec deliberately persists as DECLARED. P04 gives every resource
+		// an immutable CompiledResource plus ResourceTransaction executor, so the
+		// typed declaration is admitted without changing its canonical taxonomy.
 		rejectRuntimeMissing(result, "marks", build.marks());
 		rejectRuntimeMissing(result, "mode_groups", build.modeGroups());
 		rejectRuntimeMissing(result, "modes", build.modes());
@@ -36,11 +40,12 @@ public final class ExecutableBuildAdmissionPolicy {
 		rejectRuntimeMissing(result, "ability_pools", build.abilityPools());
 		rejectRuntimeMissing(result, "properties", build.properties());
 		rejectRuntimeMissing(result, "recipes", build.recipes());
-		rejectRuntimeMissing(result, "class_components", build.classComponents());
+		for(int i=0;i<build.classComponents().size();i++){StableTarget node=build.classComponents().get(i);if(!(node instanceof BasicAttackComponentSpec||node instanceof ResourceFlowComponentSpec||node instanceof ActiveResourceOperationComponentSpec)||node.implementationState()!=ImplementationState.IMPLEMENTED)reject(result,"class_components",i,node);}
 		rejectRuntimeMissing(result, "class_constraints", build.classConstraints());
-		rejectRuntimeMissing(result, "class_operations", build.classOperations());
+		for(int i=0;i<build.classOperations().size();i++){StableTarget node=build.classOperations().get(i);if(!(node instanceof ResourceClassOperationSpec)||node.implementationState()!=ImplementationState.IMPLEMENTED)reject(result,"class_operations",i,node);}
 		return Collections.unmodifiableList(result);
 	}
+	private static void reject(List<CompileDiagnostic> out,String collection,int index,StableTarget node){rejectRuntimeMissing(out,collection,Collections.singletonList(node));}
 
 	private static void rejectRuntimeMissing(List<CompileDiagnostic> out, String collection,
 			List<? extends StableTarget> nodes) {

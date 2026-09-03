@@ -16,12 +16,13 @@ import static org.junit.Assert.*;
 /** Layer A: schema exposure is explicit and does not imply executor support. */
 public class P03SkillFormSchemaTest {
 	@Test public void onlyImplementedVariantsArePlayerExposed() {
-		assertEquals(11,GameplayVariantCatalog.playerExposed().size());
+		assertTrue(GameplayVariantCatalog.playerExposed().size()>11);
 		for(VariantDescriptor descriptor:GameplayVariantCatalog.playerExposed()){
 			assertEquals(ImplementationState.IMPLEMENTED,descriptor.state());
 			assertFalse(descriptor.priceKey().isEmpty());
 		}
-		assertFalse(GameplayVariantCatalog.require("EFFECT","PUSH").playerExposed());
+		for(String key:new String[]{"TRIGGER.ACTIVE","CONDITION_EXPR.ALL_OF","CONDITION.ALWAYS","EFFECT.DIRECT_DAMAGE","EFFECT_CHAIN.PRIMARY","SECONDARY_ACTIVATION.IMMEDIATE_ON_PRIMARY_SUCCESS","DELIVERY.DIRECT","SELECTOR.SELECTED_ACTOR","COVERAGE.SINGLE","FILTER.RELATION_ENEMY_EXCLUDE_SELF","COST.NO_COST"})assertTrue(key,GameplayVariantCatalog.require(key.substring(0,key.indexOf('.')),key.substring(key.indexOf('.')+1)).playerExposed());
+		assertFalse(GameplayVariantCatalog.require("EFFECT","ADD_MARK").playerExposed());
 		assertTrue(EffectExecutorRegistry.standard().has(
 				com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledSkill.EffectVariant.DIRECT_DAMAGE));
 		assertNotNull(V6FormSchemas.require(V6FormSchemas.SKILL).requireField("effect_primary_amount"));
@@ -53,7 +54,7 @@ public class P03SkillFormSchemaTest {
 	@Test public void unsupportedOrGenericEditsDoNotMutateTypedSkill() {
 		PlayerBuildSession session=P03TestBuilds.directDamage("p03-form-reject",7,false,false);
 		String id=session.state().draft().skills().get(0).id().value();CanonicalBuildCodec codec=new CanonicalBuildCodec();String before=codec.serialize(session.state().draft());
-		session.dispatch(new BuilderCommand.SelectEffectFamily(id,"PRIMARY","STATUS"));
+		session.dispatch(new BuilderCommand.SelectEffectVariant(id,"PRIMARY","ADD_MARK"));
 		assertFalse(session.state().commandDiagnostics().isEmpty());assertEquals(before,codec.serialize(session.state().draft()));
 		session.dispatch(new BuilderCommand.SetFieldValue(id,"SKILL_V0_2","power","99"));
 		assertFalse(session.state().commandDiagnostics().isEmpty());assertEquals(before,codec.serialize(session.state().draft()));

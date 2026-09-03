@@ -1,0 +1,1 @@
+package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill;public final class SelectedCellSelector implements SelectorSpec{public static final String VARIANT="SELECTED_CELL";@Override public String variantKey(){return VARIANT;}}

@@ -1,0 +1,43 @@
+package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6;
+
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.*;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Rat;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.builder.BuilderCommand;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.builder.PlayerBuildSession;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.SkillExecutionResult;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.V6RuleRuntimeBridge;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
+public class P04CoreEffectRuntimeTest extends P04RuntimeTestBase {
+	@Test public void directDamageUsesTypedAmount(){PlayerBuildSession s=P04TestBuilds.effect("p04-direct","DAMAGE","DIRECT_DAMAGE",false);field(s,"amount","7");Rat target=actor(13,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(33,target.HP);}
+	@Test public void percentMaxHpDamageUsesPercentAndCap(){PlayerBuildSession s=P04TestBuilds.effect("p04-percent","DAMAGE","PERCENT_MAX_HP_DAMAGE",false);field(s,"percent","25");field(s,"absolute_cap","20");Rat target=actor(13,100,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(80,target.HP);}
+	@Test public void missingHpDamageUsesNativeHpGapScaling(){PlayerBuildSession s=P04TestBuilds.effect("p04-missing","DAMAGE","MISSING_HP_DAMAGE",false);field(s,"base_amount","2");field(s,"missing_hp_numerator","1");field(s,"missing_hp_denominator","2");field(s,"absolute_cap","40");Rat target=actor(13,40,Char.Alignment.ENEMY);target.HT=100;assertApplied(run(s,target.pos));assertEquals(8,target.HP);assertTrue(s.state().draft().resources().isEmpty());}
+	@Test public void executeKillsOnlyAtConfiguredThreshold(){PlayerBuildSession s=P04TestBuilds.effect("p04-execute","DAMAGE","EXECUTE",false);field(s,"hp_percent_threshold","20");Rat target=actor(13,20,Char.Alignment.ENEMY);target.HT=100;assertApplied(run(s,target.pos));assertFalse(target.isAlive());}
+	@Test public void applyStatusUsesWhitelistKeyNotJavaClassName(){PlayerBuildSession s=P04TestBuilds.effect("p04-status","STATUS","APPLY_STATUS",false);field(s,"status","POISON");field(s,"intensity","4");field(s,"duration_turns","6");Rat target=actor(13,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertNotNull(target.buff(Poison.class));String json=new com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalBuildCodec().serialize(s.state().draft());assertTrue(json,json.contains("\"status\":\"POISON\""));assertFalse(json,json.contains("actors.buffs.Poison"));}
+
+	@Test public void pushMovesAwayAlongLegalCells(){PlayerBuildSession s=movement("PUSH","distance","2");Rat target=actor(13,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(15,target.pos);}
+	@Test public void pullMovesTowardOwnerAlongLegalCells(){PlayerBuildSession s=movement("PULL","distance","1");Rat target=actor(10,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(11,target.pos);}
+	@Test public void throwUsesFrozenNativeCollisionPath(){PlayerBuildSession s=movement("THROW","distance","1");Rat target=actor(13,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(14,target.pos);}
+	@Test public void dashMovesOwnerToExactSelectedCell(){PlayerBuildSession s=P04TestBuilds.effect("p04-dash","MOVEMENT","DASH",true);field(s,"maximum_distance","3");assertApplied(run(s,13));assertEquals(13,hero.pos);}
+	@Test public void teleportMovesOwnerToExactSelectedCell(){PlayerBuildSession s=P04TestBuilds.effect("p04-teleport","MOVEMENT","TELEPORT",true);field(s,"maximum_range","3");assertApplied(run(s,13));assertEquals(13,hero.pos);}
+	@Test public void swapPositionExchangesBothLegalCells(){PlayerBuildSession s=P04TestBuilds.effect("p04-swap","MOVEMENT","SWAP_POSITION",false);Rat target=actor(13,40,Char.Alignment.ENEMY);assertApplied(run(s,target.pos));assertEquals(13,hero.pos);assertEquals(12,target.pos);}
+
+	@Test public void healChangesOnlyNativeHp(){PlayerBuildSession s=recovery("HEAL");field(s,"amount","7");hero.HP=40;assertApplied(run(s,hero.pos));assertEquals(47,hero.HP);assertTrue(s.state().draft().resources().isEmpty());}
+	@Test public void barrierUsesIndependentShieldState(){PlayerBuildSession s=recovery("BARRIER");field(s,"amount","8");assertApplied(run(s,hero.pos));assertEquals(100,hero.HP);assertEquals(8,hero.buff(Barrier.class).shielding());}
+	@Test public void temporaryHpUsesIndependentExpiringState(){PlayerBuildSession s=recovery("TEMPORARY_HP");field(s,"amount","9");field(s,"duration_turns","4");assertApplied(run(s,hero.pos));assertEquals(100,hero.HP);assertEquals(9,hero.buff(RuleTemporaryHP.class).shielding());assertEquals(4,hero.buff(RuleTemporaryHP.class).remainingTurns());}
+	@Test public void mitigateInstallsTypedPercentAndDuration(){PlayerBuildSession s=recovery("MITIGATE");field(s,"percent","25");field(s,"duration_turns","4");assertApplied(run(s,hero.pos));assertEquals(25,hero.buff(RuleMitigation.class).percent());assertEquals(4,hero.buff(RuleMitigation.class).remainingTurns());}
+	@Test public void redirectUsesExplicitRecipientSubject(){PlayerBuildSession s=P04TestBuilds.effect("p04-redirect","RECOVERY_DEFENSE","REDIRECT_DAMAGE",false);String id=skill(s);s.dispatch(new BuilderCommand.SetTargetingFilter(id,"RELATION_ALLY_EXCLUDE_SELF"));field(s,"percent","20");field(s,"recipient","CLASS_OWNER");Rat ally=actor(13,40,hero.alignment);assertApplied(run(s,ally.pos));assertSame(hero,ally.buff(RuleDamageRedirect.class).recipient());assertEquals(20,ally.buff(RuleDamageRedirect.class).percent());}
+	@Test public void cleanseRemovesOnlyTheBoundedNegativeSet(){PlayerBuildSession s=P04TestBuilds.effect("p04-cleanse","RECOVERY_DEFENSE","CLEANSE",false);Rat target=actor(13,40,Char.Alignment.ENEMY);Buff.affect(target,Poison.class).set(5);Buff.affect(target,Slow.class);assertApplied(run(s,target.pos));int remaining=(target.buff(Poison.class)==null?0:1)+(target.buff(Slow.class)==null?0:1);assertEquals(1,remaining);}
+
+	@Test public void hpCostAndLowHpConditionUseNativeHpAndNeverConsumeShields(){PlayerBuildSession s=recovery("HEAL");String id=skill(s);field(s,"amount","1");s.dispatch(new BuilderCommand.SelectConditionVariant(id,"BUILTIN_STAT_COMPARE"));s.dispatch(new BuilderCommand.SetTypedSkillField(id,"condition.0","BUILTIN_STAT_COMPARE","stat","HP_PERCENT"));s.dispatch(new BuilderCommand.SetTypedSkillField(id,"condition.0","BUILTIN_STAT_COMPARE","operator","LTE"));s.dispatch(new BuilderCommand.SetTypedSkillField(id,"condition.0","BUILTIN_STAT_COMPARE","value","50"));s.dispatch(new BuilderCommand.SetCost(id,"HP"));s.dispatch(new BuilderCommand.SetTypedSkillField(id,"cost","HP","amount","4"));P04TestBuilds.clean(s);Barrier barrier=Buff.affect(hero,Barrier.class);barrier.incShield(8);RuleTemporaryHP temporary=Buff.affect(hero,RuleTemporaryHP.class);temporary.grant(9,5,0);hero.HP=5;assertApplied(run(s,hero.pos));assertEquals(2,hero.HP);assertEquals(8,barrier.shielding());assertEquals(9,temporary.shielding());hero.HP=4;SkillExecutionResult blocked=run(s,hero.pos);assertEquals(SkillExecutionResult.Status.BLOCKED,blocked.status());assertEquals(4,hero.HP);assertEquals(8,barrier.shielding());assertEquals(9,temporary.shielding());assertTrue(s.state().draft().resources().isEmpty());}
+
+	private PlayerBuildSession movement(String variant,String field,String value){PlayerBuildSession s=P04TestBuilds.effect("p04-move-"+variant,"MOVEMENT",variant,false);field(s,field,value);return s;}
+	private PlayerBuildSession recovery(String variant){return P04TestBuilds.effect("p04-recovery-"+variant,"RECOVERY_DEFENSE",variant,true);}
+	private void field(PlayerBuildSession session,String key,String value){String id=skill(session);String variant=session.state().draft().skills().get(0).effects().primary().variantKey().name();session.dispatch(new BuilderCommand.SetTypedSkillField(id,"effects.primary",variant,key,value));P04TestBuilds.clean(session);}
+	private String skill(PlayerBuildSession session){return session.state().draft().skills().get(0).id().value();}
+	private SkillExecutionResult run(PlayerBuildSession session,int selectedCell){P04TestBuilds.clean(session);V6RuleRuntimeBridge bridge=V6RuleRuntimeBridge.install(hero,session.finalizeOrThrow());return bridge.triggerActive(hero,selectedCell,skill(session),900,0,damageGateway());}
+	private static void assertApplied(SkillExecutionResult result){assertEquals(result.diagnostic()+"\n"+result.trace().serialize(),SkillExecutionResult.Status.APPLIED,result.status());}
+}

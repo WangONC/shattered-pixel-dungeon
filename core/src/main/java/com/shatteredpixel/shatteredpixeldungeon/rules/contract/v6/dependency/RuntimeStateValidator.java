@@ -5,6 +5,8 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ClassBuil
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ContractNodeSpec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.StableTarget;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.SkillSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.component.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.*;
 
 import java.util.ArrayList;
@@ -40,7 +42,11 @@ public final class RuntimeStateValidator {
 					value.reservations().stream().map(ResourceState.Reservation::reservationId).toArray(Long[]::new));
 			duplicateLongIds(result, build.buildId(), path + ".suppressions", value.resource().targetId(),
 					value.suppressions().stream().map(ResourceState.Suppression::suppressionId).toArray(Long[]::new));
+			com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ResourceSpec declaration=null;
+			for(com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ResourceSpec candidate:build.resources())if(candidate.id().equals(value.resource().targetId()))declaration=candidate;
+			if(declaration!=null&&(value.current()<declaration.minimum()||value.current()>declaration.maximum()))result.add(diagnostic(build.buildId(),path+".current",DependencyState.HARD_CONFLICT,value.resource().targetId(),"runtime.resource_out_of_bounds"));
 		}
+		for(com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.ResourceSpec declaration:build.resources())if(!runtime.resources().containsKey(new com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.ResourceRef(declaration.id(),"")))result.add(diagnostic(build.buildId(),"runtime.resources",DependencyState.UNRESOLVED,declaration.id(),"runtime.resource_state_missing"));
 		Set<String> modes = new HashSet<>();
 		for (int i = 0; i < runtime.modes().size(); i++) {
 			ModeState value = runtime.modes().get(i);
@@ -105,14 +111,8 @@ public final class RuntimeStateValidator {
 					DependencyState.HARD_CONFLICT, value.nodeId(), "runtime.counter.duplicate_node_id"));
 			if (value.value() == null || value.value() < 0) result.add(diagnostic(build.buildId(), path + ".value",
 					DependencyState.HARD_CONFLICT, value.nodeId(), "runtime.counter.invalid_value_type_or_range"));
-			StableTarget target = find(build, value.nodeId());
-			if (target == null) result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.UNRESOLVED,
-					value.nodeId(), "runtime.counter.node_missing"));
-			else if (!(target instanceof SkillSpec) && (!(target instanceof ContractNodeSpec)
-					|| ((ContractNodeSpec) target).nodeKind() != ContractNodeSpec.NodeKind.OPERATION)) {
-				result.add(diagnostic(build.buildId(), path + ".node_id", DependencyState.HARD_CONFLICT,
-						value.nodeId(), "runtime.counter.wrong_node_type"));
-			}
+			if (!isRuntimeNodeId(build,value.nodeId())) {StableTarget top=find(build,value.nodeId());result.add(diagnostic(build.buildId(), path + ".node_id", top==null?DependencyState.UNRESOLVED:DependencyState.HARD_CONFLICT,
+					value.nodeId(), top==null?"runtime.counter.node_missing":"runtime.counter.wrong_node_type"));}
 		}
 		return new DependencyReport(result);
 	}
@@ -129,6 +129,15 @@ public final class RuntimeStateValidator {
 		for (StableTarget target : build.allTargets()) if (target.id().equals(id)) return target;
 		return null;
 	}
+	private static boolean isRuntimeNodeId(ClassBuildSpec build,StableId id){
+		StableTarget top=find(build,id);if(top instanceof SkillSpec)return true;if(top instanceof ContractNodeSpec){ContractNodeSpec n=(ContractNodeSpec)top;if(n.nodeKind()==ContractNodeSpec.NodeKind.OPERATION||n.nodeKind()==ContractNodeSpec.NodeKind.COMPONENT)return true;}
+		for(SkillSpec skill:build.skills())if(skill.typed()&&skillNode(skill,id))return true;
+		for(ContractNodeSpec node:build.classComponents()){if(node instanceof ResourceFlowComponentSpec){ResourceFlowComponentSpec x=(ResourceFlowComponentSpec)node;if(x.trigger().nodeId().equals(id)||x.operation().operationId().equals(id)||conditionNode(x.condition(),id))return true;}else if(node instanceof ActiveResourceOperationComponentSpec){ActiveResourceOperationComponentSpec x=(ActiveResourceOperationComponentSpec)node;if(x.operation().operationId().equals(id)||x.cost().nodeId().equals(id)||x.classOperationId().equals(id))return true;}}
+		for(ContractNodeSpec node:build.classOperations())if(node instanceof ResourceClassOperationSpec){ResourceClassOperationSpec x=(ResourceClassOperationSpec)node;if(x.activation().nodeId().equals(id)||x.cost().nodeId().equals(id)||x.operation().operationId().equals(id)||conditionNode(x.condition(),id))return true;}
+		return false;
+	}
+	private static boolean skillNode(SkillSpec x,StableId id){if(x.activation().nodeId().equals(id)||x.effects().chainId().equals(id)||x.effects().primary().effectId().equals(id)||x.delivery().nodeId().equals(id)||x.targeting().nodeId().equals(id)||x.cost().nodeId().equals(id))return true;if(x.effects().secondary()!=null&&x.effects().secondary().effect().effectId().equals(id))return true;if(x.modifier()!=null&&x.modifier().nodeId().equals(id))return true;if(x.constraint()!=null&&x.constraint().constraintId().equals(id))return true;if(x.effects().primary() instanceof ResourceOperationEffectSpec&&((ResourceOperationEffectSpec)x.effects().primary()).operation().operationId().equals(id))return true;return x.effects().secondary()!=null&&x.effects().secondary().effect() instanceof ResourceOperationEffectSpec&&((ResourceOperationEffectSpec)x.effects().secondary().effect()).operation().operationId().equals(id)||conditionNode(x.condition(),id);}
+	private static boolean conditionNode(ConditionExpr condition,StableId id){if(condition instanceof BuiltinStatCompareCondition)return ((BuiltinStatCompareCondition)condition).nodeId().equals(id);if(condition instanceof ResourceCompareCondition)return ((ResourceCompareCondition)condition).nodeId().equals(id);if(condition instanceof AllOfCondition)for(ConditionExpr child:((AllOfCondition)condition).children())if(conditionNode(child,id))return true;return false;}
 
 	private static void duplicateLongIds(List<DependencyDiagnostic> result, StableId owner, String path,
 			StableId target, Long[] values) {

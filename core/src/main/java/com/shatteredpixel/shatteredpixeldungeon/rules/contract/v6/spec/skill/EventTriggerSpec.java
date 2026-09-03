@@ -1,0 +1,4 @@
+package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.GameplayEventContext;
+public final class EventTriggerSpec implements TriggerSpec{private final StableId nodeId;private final GameplayEventContext.RuleEventType event;public EventTriggerSpec(StableId id,GameplayEventContext.RuleEventType event){if(id==null||event==null||event==GameplayEventContext.RuleEventType.ACTIVE)throw new IllegalArgumentException("invalid event trigger");nodeId=id;this.event=event;}@Override public StableId nodeId(){return nodeId;}@Override public String variantKey(){return "EVENT";}public GameplayEventContext.RuleEventType event(){return event;}}

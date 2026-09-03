@@ -1,41 +1,98 @@
 package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime;
 
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.ClassCompilePlan;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledClassOperation;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledClassComponent;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledSkill;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.SkillCompiler;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.ResourceRef;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ResourceState;
 
-/** Executes only immutable compiled nodes; authoring models never cross this boundary. */
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/** Executes immutable compiled nodes using the frozen P04 transaction order. */
 public final class V6RuleRuntime {
-	private final ClassCompilePlan plan;private final EffectExecutorRegistry executors;
-	public V6RuleRuntime(ClassCompilePlan plan,EffectExecutorRegistry executors){
-		if(plan==null||executors==null)throw new IllegalArgumentException("compile plan and executors are required");
+	private static final ThreadLocal<Set<String>> ACTIVE_CHAINS=new ThreadLocal<>();
+	private final ClassCompilePlan plan; private final EffectExecutorRegistry executors;
+	private ClassRuntimeState state;
+	public V6RuleRuntime(ClassCompilePlan plan,EffectExecutorRegistry executors){this(plan,executors,ResourceRuntimeStateFactory.initialize(plan));}
+	public V6RuleRuntime(ClassCompilePlan plan,EffectExecutorRegistry executors,ClassRuntimeState state){
+		if(plan==null||executors==null||state==null)throw new IllegalArgumentException("compile plan, executors and runtime state are required");
 		if(!plan.executable())throw new IllegalArgumentException("preview or partial compile plan is not executable");
 		if(!SkillCompiler.RUNTIME_VERSION.equals(plan.runtimeVersion()))throw new IllegalArgumentException("runtime version mismatch");
 		if(!executors.supportsAll(plan.requiredEffectVariants()))throw new IllegalArgumentException("compile plan executors are unavailable");
-		this.plan=plan;this.executors=executors;
+		String incompatible=ResourceRuntimeStateFactory.incompatibility(plan,state);if(!incompatible.isEmpty())throw new IllegalArgumentException(incompatible);
+		this.plan=plan;this.executors=executors;this.state=state;
 	}
-	public SkillExecutionResult execute(StableId skillId,RuntimeExecutionContext context){
-		if(skillId==null||context==null)throw new IllegalArgumentException("skill and runtime context required");RuntimeTrace trace=new RuntimeTrace();GameplayEventContext event=context.event();
+	public synchronized ClassCompilePlan plan(){return plan;} public synchronized ClassRuntimeState state(){return state;}
+	synchronized void publishState(ClassRuntimeState value){String incompatible=ResourceRuntimeStateFactory.incompatibility(plan,value);if(!incompatible.isEmpty())throw new IllegalArgumentException(incompatible);state=value;}
+
+	public synchronized SkillExecutionResult execute(StableId skillId,RuntimeExecutionContext context){
+		if(skillId==null||context==null)throw new IllegalArgumentException("skill and runtime context required");
+		RuntimeTrace trace=new RuntimeTrace();GameplayEventContext event=context.event();
 		trace.record("event","event_id="+event.eventId()+" cause_event_id="+event.causeEventId()+" type="+event.eventType()+" owner_actor="+event.classOwnerActorId()+" owner_cell="+event.classOwnerCell()+" source_actor="+event.sourceActorId()+" source_cell="+event.sourceCell()+" selected_actor="+event.selectedActorId()+" selected_cell="+event.selectedCell()+" originating_skill="+event.originatingSkillId().value());
 		CompiledSkill skill=plan.find(skillId);if(skill==null)return result(SkillExecutionResult.Status.UNSUPPORTED,0,trace,"runtime.skill_not_compiled");
-		trace.record("skill","skill="+skill.skillId().value()+" trigger="+skill.trigger().variant()+" delivery="+skill.delivery().variant());
+		context.bind(this,skill);trace.record("dependency_resolve","status=RESOLVED build="+plan.buildId().value()+" skill="+skill.skillId().value());
 		if(!skill.skillId().equals(event.originatingSkillId()))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.originating_skill_mismatch");
-		if(skill.trigger().variant()!=CompiledSkill.TriggerVariant.ACTIVE||event.eventType()!=GameplayEventContext.RuleEventType.ACTIVE)return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.trigger_not_satisfied");
-		if(skill.condition().variant()!=CompiledSkill.ConditionVariant.ALWAYS)return result(SkillExecutionResult.Status.UNSUPPORTED,0,trace,"runtime.condition_unsupported");
-		PreflightResult targetCheck=new SkillTargetPreflight().resolve(skill,context,trace);if(targetCheck.status()!=PreflightResult.Status.READY)return result(map(targetCheck.status()),0,trace,targetCheck.diagnostic());
-		EffectPreflightResult primaryCheck=executors.preflight(skill.effectChain().primary(),targetCheck.target(),context);trace.record("effect_preflight","slot=primary variant="+skill.effectChain().primary().variant()+" status="+primaryCheck.status());
-		if(!primaryCheck.readyForExecute())return result(map(primaryCheck.status()),0,trace,primaryCheck.diagnostic());
-		if(skill.effectChain().secondary()!=null){EffectPreflightResult secondaryCheck=executors.preflight(skill.effectChain().secondary().effect(),targetCheck.target(),context);trace.record("effect_preflight","slot=secondary variant="+skill.effectChain().secondary().effect().variant()+" status="+secondaryCheck.status());if(!secondaryCheck.readyForExecute())return result(map(secondaryCheck.status()),0,trace,secondaryCheck.diagnostic());}
-		if(skill.cost().variant()!=CompiledSkill.CostVariant.NO_COST)return result(SkillExecutionResult.Status.UNSUPPORTED,0,trace,"runtime.cost_unsupported");
-		trace.record("cost","variant=NO_COST status=COMMITTED after_effect_preflight=true");
-		EffectResult primary=executors.execute(skill.effectChain().primary(),targetCheck.target(),context,trace);if(primary.status()!=EffectResult.Status.APPLIED)return result(map(primary.status()),0,trace,primary.diagnostic());
-		int applied=primary.appliedAmount();trace.record("chain","chain="+skill.effectChain().chainId().value()+" primary=APPLIED");
-		if(skill.effectChain().secondary()!=null){EffectResult secondary=executors.execute(skill.effectChain().secondary().effect(),targetCheck.target(),context,trace);if(secondary.status()!=EffectResult.Status.APPLIED)return result(map(secondary.status()),applied,trace,secondary.diagnostic());applied+=secondary.appliedAmount();trace.record("chain","chain="+skill.effectChain().chainId().value()+" secondary=APPLIED activation="+skill.effectChain().secondary().activation());}
-		return result(SkillExecutionResult.Status.APPLIED,applied,trace,"runtime.applied");
+		if(!triggered(skill.trigger(),event))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.trigger_not_satisfied");
+		if(!condition(skill.condition(),context))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.condition_not_satisfied");
+		String guardKey=skill.skillId().value()+":"+event.eventId()+":"+event.causeEventId();Set<String> chains=ACTIVE_CHAINS.get();boolean root=chains==null;if(root){chains=new HashSet<>();ACTIVE_CHAINS.set(chains);}if(!chains.add(guardKey))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.recursive_chain_blocked");
+		try{
+			PreflightResult targetCheck=new SkillTargetPreflight().resolve(skill,context,trace);if(targetCheck.status()!=PreflightResult.Status.READY)return result(map(targetCheck.status()),0,trace,targetCheck.diagnostic());
+			List<Char> targets=targetCheck.targets();for(Char target:targets){EffectPreflightResult primaryCheck=executors.preflight(skill.effectChain().primary(),target,context);trace.record("effect_capability_preflight","slot=primary target="+target.id()+" variant="+skill.effectChain().primary().variant()+" status="+primaryCheck.status());trace.record("effect_preflight","slot=primary target="+target.id()+" variant="+skill.effectChain().primary().variant()+" status="+primaryCheck.status());if(!primaryCheck.readyForExecute())return result(map(primaryCheck.status()),0,trace,primaryCheck.diagnostic());
+				if(skill.effectChain().secondary()!=null){EffectPreflightResult secondaryCheck=executors.preflight(skill.effectChain().secondary().effect(),target,context);trace.record("effect_capability_preflight","slot=secondary target="+target.id()+" variant="+skill.effectChain().secondary().effect().variant()+" status="+secondaryCheck.status());trace.record("effect_preflight","slot=secondary target="+target.id()+" variant="+skill.effectChain().secondary().effect().variant()+" status="+secondaryCheck.status());if(!secondaryCheck.readyForExecute())return result(map(secondaryCheck.status()),0,trace,secondaryCheck.diagnostic());}}
+			CostPlan cost=preflightCost(skill.cost(),context,"skill-"+event.eventId()+"-"+skill.skillId().value());trace.record("cost_preflight","variant="+skill.cost().variant()+" status="+cost.status+" diagnostic="+cost.diagnostic);if(!cost.ready())return result(SkillExecutionResult.Status.BLOCKED,0,trace,cost.diagnostic);
+			if(!commitCost(cost,skill.cost(),context,trace))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.cost_commit_failed");trace.record("cost","variant="+skill.cost().variant()+" status=COMMITTED after_effect_preflight=true");
+			commitActionTimeCooldown(skill.cost(),context,trace);
+			int repeat=skill.modifier().variant()==CompiledSkill.ModifierVariant.REPEAT?skill.modifier().first():1,applied=0;
+			for(int activation=1;activation<=repeat;activation++)for(Char target:targets){
+				trace.record("chain_activation","chain="+skill.effectChain().chainId().value()+" activation="+activation+" target="+target.id()+" cause_event_id="+event.causeEventId());
+				EffectResult primary=executors.execute(skill.effectChain().primary(),target,context,trace);trace.record("chain_result","chain="+skill.effectChain().chainId().value()+" activation="+activation+" slot=primary status="+primary.status()+" cause_event_id="+event.causeEventId());
+				if(primary.status()!=EffectResult.Status.APPLIED){trace.record("post_commit_failure","refund=false slot=primary status="+primary.status());return result(map(primary.status()),applied,trace,primary.diagnostic());}applied+=primary.appliedAmount();trace.record("chain","chain="+skill.effectChain().chainId().value()+" primary=APPLIED activation="+activation);
+				if(skill.effectChain().secondary()!=null){EffectResult secondary=executors.execute(skill.effectChain().secondary().effect(),target,context,trace);trace.record("chain_result","chain="+skill.effectChain().chainId().value()+" activation="+activation+" slot=secondary activation_policy="+skill.effectChain().secondary().activation()+" status="+secondary.status()+" cause_event_id="+event.causeEventId());if(secondary.status()!=EffectResult.Status.APPLIED){trace.record("post_commit_failure","refund=false slot=secondary status="+secondary.status());return result(map(secondary.status()),applied,trace,secondary.diagnostic());}applied+=secondary.appliedAmount();trace.record("chain","chain="+skill.effectChain().chainId().value()+" secondary=APPLIED activation="+skill.effectChain().secondary().activation()+" cause_event_id="+event.causeEventId());}
+			}
+			return result(SkillExecutionResult.Status.APPLIED,applied,trace,"runtime.applied");
+		}finally{chains.remove(guardKey);if(root)ACTIVE_CHAINS.remove();}
 	}
+
+	/** Executes the independent P04 Resource ClassOperation through the same transaction engine. */
+	public synchronized SkillExecutionResult executeOperation(StableId operationId,RuntimeExecutionContext context){
+		RuntimeTrace trace=new RuntimeTrace();CompiledClassOperation operation=plan.findOperation(operationId);if(operation==null)return result(SkillExecutionResult.Status.UNSUPPORTED,0,trace,"runtime.operation_not_compiled");
+		CompiledSkill synthetic=synthetic(operation);context.bind(this,synthetic);trace.record("dependency_resolve","status=RESOLVED operation="+operation.id().value());
+		if(!condition(operation.condition(),context))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.condition_not_satisfied");
+		ResourceTransaction transaction=new ResourceTransaction(plan,state,operation.operation(),context::resolveRaw,"tx-"+context.event().eventId()+"-"+operation.operation().operationId().value());ResourceTransaction.Result ready=transaction.preflight();trace.record("resource_preflight","transaction_id="+ready.transactionId()+" status="+ready.status());if(ready.status()!=ResourceTransaction.Status.READY)return result(SkillExecutionResult.Status.BLOCKED,0,trace,ready.diagnostic());
+		CostPlan cost=preflightCost(operation.cost(),context,"operation-cost-"+context.event().eventId());if(!cost.ready())return result(SkillExecutionResult.Status.BLOCKED,0,trace,cost.diagnostic);if(!commitCost(cost,operation.cost(),context,trace))return result(SkillExecutionResult.Status.BLOCKED,0,trace,"runtime.cost_commit_failed");
+		commitActionTimeCooldown(operation.cost(),context,trace);
+		context.spendActionTime(operation.actionTimeTurns());trace.record("action_commit","turns="+operation.actionTimeTurns());
+		ResourceTransaction.Result committed=new ResourceTransaction(plan,state,operation.operation(),context::resolveRaw,ready.transactionId()).commit();trace.record("resource_transaction","transaction_id="+committed.transactionId()+" "+ResourceTransaction.traceDetails(operation.operation(),context::resolveRaw)+" status="+committed.status());if(committed.status()!=ResourceTransaction.Status.COMMITTED)return result(SkillExecutionResult.Status.BLOCKED,0,trace,committed.diagnostic());publishState(committed.state());return result(SkillExecutionResult.Status.APPLIED,1,trace,"runtime.operation_applied");
+	}
+	/** Event-driven ResourceFlowComponent execution; each flow is one atomic transaction. */
+	public synchronized SkillExecutionResult executeResourceFlows(RuntimeExecutionContext context){
+		if(context==null)throw new IllegalArgumentException("runtime context required");context.bind(this);RuntimeTrace trace=new RuntimeTrace();int applied=0;
+		for(CompiledClassComponent component:plan.components())if(component.variant()==CompiledClassComponent.Variant.RESOURCE_FLOW&&triggered(component.trigger(),context.event())){
+			trace.record("dependency_resolve","status=RESOLVED component="+component.id().value());if(!condition(component.condition(),context)){trace.record("flow","component="+component.id().value()+" status=CONDITION_BLOCKED");continue;}
+			String id="tx-"+context.event().eventId()+"-"+component.operation().operationId().value();ResourceTransaction transaction=new ResourceTransaction(plan,state,component.operation(),context::resolveRaw,id);ResourceTransaction.Result ready=transaction.preflight();trace.record("resource_preflight","transaction_id="+id+" status="+ready.status());if(ready.status()!=ResourceTransaction.Status.READY)return result(SkillExecutionResult.Status.BLOCKED,applied,trace,ready.diagnostic());ResourceTransaction.Result committed=new ResourceTransaction(plan,state,component.operation(),context::resolveRaw,id).commit();trace.record("resource_transaction","transaction_id="+id+" "+ResourceTransaction.traceDetails(component.operation(),context::resolveRaw)+" status="+committed.status());if(committed.status()!=ResourceTransaction.Status.COMMITTED)return result(SkillExecutionResult.Status.BLOCKED,applied,trace,committed.diagnostic());publishState(committed.state());applied++;
+		}
+		return result(SkillExecutionResult.Status.APPLIED,applied,trace,"runtime.resource_flows_applied");
+	}
+
+	private static CompiledSkill synthetic(CompiledClassOperation operation){return new CompiledSkill(operation.id(),operation.activation(),operation.condition(),new CompiledSkill.Delivery(operation.id(),CompiledSkill.DeliveryVariant.SELF,false),new CompiledSkill.Targeting(operation.id(),CompiledSkill.SelectorVariant.SELF,CompiledSkill.CoverageVariant.SINGLE,CompiledSkill.FilterVariant.SELF,0,1,CompiledSkill.LineOfSightPolicy.DELIVERY,CompiledSkill.OrderingPolicy.DISTANCE_CELL_ACTOR_ID),new CompiledSkill.EffectChain(operation.id(),new CompiledSkill.ResourceOperationEffect(operation.id(),operation.operation()),null),new CompiledSkill.Modifier(CompiledSkill.ModifierVariant.NONE),operation.cost(),new CompiledSkill.Constraint(CompiledSkill.ConstraintVariant.NONE));}
+	private static boolean triggered(CompiledSkill.Trigger trigger,GameplayEventContext event){return trigger.variant()==CompiledSkill.TriggerVariant.ACTIVE?event.eventType()==GameplayEventContext.RuleEventType.ACTIVE:trigger.event()==event.eventType();}
+	private boolean condition(CompiledSkill.Condition condition,RuntimeExecutionContext context){switch(condition.variant()){case ALWAYS:return true;case ALL_OF:for(CompiledSkill.Condition child:condition.children())if(!condition(child,context))return false;return true;case BUILTIN_STAT_COMPARE:{Char subject=context.subject(condition.subject());if(subject==null)return false;CompiledSkill.ValueSource source=new CompiledSkill.ValueSource(CompiledSkill.ValueSourceVariant.BUILTIN_STAT,condition.subject(),condition.stat(),null);int left=context.resolveRaw(CompiledSkill.Value.scaled(0,source,1,1,Integer.MIN_VALUE,Integer.MAX_VALUE));return compare(left,context.resolveRaw(condition.value()),condition.comparison());}case RESOURCE_COMPARE:{ResourceState value=state.resources().get(new ResourceRef(condition.resourceId(),""));return value!=null&&compare(value.current(),condition.value().fixed(),condition.comparison());}default:return false;}}
+	private static boolean compare(int left,int right,CompiledSkill.Comparison comparison){switch(comparison){case LT:return left<right;case LTE:return left<=right;case EQ:return left==right;case GTE:return left>=right;case GT:return left>right;default:return false;}}
+
+	private CostPlan preflightCost(CompiledSkill.Cost cost,RuntimeExecutionContext context,String transactionId){Char owner=context.classOwner();if(owner==null)return CostPlan.blocked("cost.owner_unavailable");switch(cost.variant()){case NO_COST:case ACTION_TIME:return CostPlan.ready(null,transactionId);case HP:if(cost.lethalPolicy()!=CompiledSkill.HpLethalPolicy.REJECT_IF_WOULD_KILL||cost.minimum()<1)return CostPlan.blocked("cost.hp_policy_unsupported");return owner.HP-cost.amount()>=cost.minimum()?CostPlan.ready(null,transactionId):CostPlan.blocked("cost.hp_would_kill");case COOLDOWN:{Integer remaining=state.cooldowns().get(cost.nodeId());return remaining==null||remaining<=0?CostPlan.ready(null,transactionId):CostPlan.blocked("cost.cooldown_active");}case RESOURCE:{CompiledSkill.ResourceOperation drain=new CompiledSkill.ResourceOperation(cost.nodeId(),CompiledSkill.ResourceOperationVariant.DRAIN,cost.resourceId(),null,CompiledSkill.Value.fixed(cost.amount()),0,0,0,null,CompiledSkill.InsufficientResourcePolicy.FAIL,null,null,null);ResourceTransaction.Result result=new ResourceTransaction(plan,state,drain,context::resolveRaw,transactionId).preflight();return result.status()==ResourceTransaction.Status.READY?CostPlan.ready(drain,transactionId):CostPlan.blocked(result.diagnostic());}case ITEM:return context.hasItemCost(cost.itemCategory(),cost.amount())?CostPlan.ready(null,transactionId):CostPlan.blocked("cost.item_missing");default:return CostPlan.blocked("cost.unsupported");}}
+	private boolean commitCost(CostPlan cost,CompiledSkill.Cost spec,RuntimeExecutionContext context,RuntimeTrace trace){switch(spec.variant()){case RESOURCE:{ResourceTransaction.Result committed=new ResourceTransaction(plan,state,cost.resourceOperation,context::resolveRaw,cost.transactionId).commit();trace.record("cost_commit","variant=RESOURCE transaction_id="+committed.transactionId()+" status="+committed.status());if(committed.status()!=ResourceTransaction.Status.COMMITTED)return false;publishState(committed.state());return true;}case HP:context.classOwner().HP-=spec.amount();trace.record("cost_commit","variant=HP amount="+spec.amount()+" hp_after="+context.classOwner().HP+" barrier_untouched=true temporary_hp_untouched=true");return true;case ITEM:{boolean committed=context.commitItemCost(spec.itemCategory(),spec.amount());trace.record("cost_commit","variant=ITEM amount="+spec.amount()+" status="+(committed?"COMMITTED":"BLOCKED"));return committed;}default:trace.record("cost_commit","variant="+spec.variant()+" status=COMMITTED");return true;}}
+	private void commitActionTimeCooldown(CompiledSkill.Cost cost,RuntimeExecutionContext context,RuntimeTrace trace){if(cost.variant()==CompiledSkill.CostVariant.ACTION_TIME){context.spendActionTime(cost.amount());trace.record("action_commit","turns="+cost.amount());}if(cost.variant()==CompiledSkill.CostVariant.COOLDOWN){Map<StableId,Integer> values=new LinkedHashMap<>(state.cooldowns());values.put(cost.nodeId(),cost.amount());publishState(state.toBuilder().cooldowns(values).build());trace.record("cooldown_commit","node="+cost.nodeId().value()+" turns="+cost.amount());}}
 	private static SkillExecutionResult result(SkillExecutionResult.Status status,int amount,RuntimeTrace trace,String diagnostic){trace.record("result","status="+status+" applied="+amount+" diagnostic="+diagnostic);return new SkillExecutionResult(status,amount,trace,diagnostic);}
 	private static SkillExecutionResult.Status map(PreflightResult.Status status){switch(status){case NO_TARGET:return SkillExecutionResult.Status.NO_TARGET;case BLOCKED:return SkillExecutionResult.Status.BLOCKED;case UNSUPPORTED:return SkillExecutionResult.Status.UNSUPPORTED;default:throw new IllegalArgumentException("READY cannot map to failure");}}
-	private static SkillExecutionResult.Status map(EffectPreflightResult.Status status){return SkillExecutionResult.Status.valueOf(status.name());}
-	private static SkillExecutionResult.Status map(EffectResult.Status status){return SkillExecutionResult.Status.valueOf(status.name());}
+	private static SkillExecutionResult.Status map(EffectPreflightResult.Status status){return SkillExecutionResult.Status.valueOf(status.name());}private static SkillExecutionResult.Status map(EffectResult.Status status){return SkillExecutionResult.Status.valueOf(status.name());}
+	private static final class CostPlan{final String status,diagnostic,transactionId;final CompiledSkill.ResourceOperation resourceOperation;private CostPlan(String status,String diagnostic,CompiledSkill.ResourceOperation operation,String id){this.status=status;this.diagnostic=diagnostic;resourceOperation=operation;transactionId=id;}static CostPlan ready(CompiledSkill.ResourceOperation operation,String id){return new CostPlan("READY","ready",operation,id);}static CostPlan blocked(String diagnostic){return new CostPlan("BLOCKED",diagnostic,null,"");}boolean ready(){return "READY".equals(status);}}
 }

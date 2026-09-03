@@ -22,7 +22,7 @@ public class P03TypedSkillCanonicalRoundTripTest {
 		CanonicalBuildCodec codec=new CanonicalBuildCodec();String json=codec.serialize(P03TestBuilds.directDamage("p03-canonical-reject",7,false,false).state().draft());
 		CanonicalLoadResult<ClassBuildSpec> unknown=codec.deserialize(json.replace("\"variant_key\":\"DIRECT_DAMAGE\"","\"variant_key\":\"DOES_NOT_EXIST\""));
 		assertEquals(DependencyState.UNSUPPORTED,unknown.state());assertNull(unknown.value());
-		CanonicalLoadResult<ClassBuildSpec> declared=codec.deserialize(json.replace("\"variant_key\":\"DIRECT_DAMAGE\"","\"variant_key\":\"PUSH\""));
+		CanonicalLoadResult<ClassBuildSpec> declared=codec.deserialize(json.replace("\"variant_key\":\"DIRECT_DAMAGE\"","\"variant_key\":\"ADD_MARK\""));
 		assertEquals(DependencyState.UNSUPPORTED,declared.state());assertNull(declared.value());assertTrue(declared.diagnostics().toString().contains("unavailable"));
 	}
 }

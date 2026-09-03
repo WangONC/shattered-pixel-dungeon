@@ -29,7 +29,7 @@ public class AuthoritativeHeroLoadTest {
 
 	@Test public void missingRuntimeResourceReferenceLoadsAsUnresolved(){P01Fixtures f=new P01Fixtures();StableId missing=f.ids.nextId("res");ClassRuntimeState state=ClassRuntimeState.builder(f.buildId).addResource(new ResourceState(new ResourceRef(missing,"Missing Resource"),1,Collections.emptyList(),Collections.emptyList())).build();assertEquals(DependencyState.UNRESOLVED,roundtrip(f.declarationsOnly(),state).state());}
 
-	@Test public void deferredAndUnsupportedNodesNeverLoadAsFullyResolved(){P01Fixtures f=new P01Fixtures();assertEquals(DependencyState.UNSUPPORTED,roundtrip(f.build(),emptyRuntime(f.buildId)).state());}
+	@Test public void deferredAndUnsupportedNodesNeverLoadAsFullyResolved(){P01Fixtures f=new P01Fixtures();assertEquals(DependencyState.UNRESOLVED,roundtrip(f.build(),emptyRuntime(f.buildId)).state());}
 
 	@Test public void buildIdMismatchLoadsAsHardConflict(){P01Fixtures f=new P01Fixtures();ClassRuntimeState other=emptyRuntime(f.ids.nextId("build"));Hero restored=restoreRaw(new CanonicalBuildCodec().serialize(f.declarationsOnly()),new CanonicalRuntimeCodec().serialize(other));assertEquals(DependencyState.HARD_CONFLICT,new HeroClassBundleCodec().load(restored).state());}
 

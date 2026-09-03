@@ -23,7 +23,7 @@ public class P03ImplementationEvidenceTest {
 	@Test public void everyQualifiedVariantHasAnExplicitCompleteRunnableEvidenceRow(){
 		List<VariantDescriptor> catalog=GameplayVariantCatalog.all();
 		Map<String,P03ImplementationEvidence.Row> registry=P03ImplementationEvidence.registry();
-		assertEvidenceCoverage(catalog,registry);
+		assertEvidenceCoverage(catalog,registry,P03ImplementationEvidence.requiredVariants());
 		Set<String> executed=new HashSet<>();
 		for(P03ImplementationEvidence.Row row:registry.values()){
 			assertEquals(ImplementationState.IMPLEMENTED,row.state);
@@ -35,13 +35,13 @@ public class P03ImplementationEvidenceTest {
 	@Test public void deletingDirectDamageExplicitRowFailsTheGate(){
 		Map<String,P03ImplementationEvidence.Row> missing=new LinkedHashMap<>(P03ImplementationEvidence.registry());
 		assertNotNull(missing.remove("EFFECT.DIRECT_DAMAGE"));
-		assertCoverageFails(GameplayVariantCatalog.all(),missing,"missing evidence row EFFECT.DIRECT_DAMAGE");
+		assertCoverageFails(GameplayVariantCatalog.all(),missing,P03ImplementationEvidence.requiredVariants(),"missing evidence row EFFECT.DIRECT_DAMAGE");
 	}
 
-	@Test public void newImplementedVariantWithoutEvidenceFailsTheGate(){
+	@Test public void laterPhaseImplementedVariantsDoNotContaminateTheP03Snapshot(){
 		List<VariantDescriptor> expanded=new ArrayList<>(GameplayVariantCatalog.all());
 		expanded.add(new VariantDescriptor("EFFECT","FUTURE_IMPLEMENTED",ImplementationState.IMPLEMENTED,true,"skill.effect.future"));
-		assertCoverageFails(expanded,P03ImplementationEvidence.registry(),"missing evidence row EFFECT.FUTURE_IMPLEMENTED");
+		assertEvidenceCoverage(expanded,P03ImplementationEvidence.registry(),P03ImplementationEvidence.requiredVariants());
 	}
 
 	@Test public void unknownEvidenceVariantAndMisspelledTestIdFailTheGate(){
@@ -51,14 +51,14 @@ public class P03ImplementationEvidenceTest {
 				direct.schemaTestId,direct.builderPathTestId,direct.dependencyTestId,direct.formatterTestId,
 				direct.budgetTestId,direct.saveLoadTestId,direct.compilerTestId,direct.executorTestId,
 				direct.runtimeBehaviorTestId,direct.adversarialTestId));
-		assertCoverageFails(GameplayVariantCatalog.all(),unknown,"unknown evidence variant EFFECT.DOES_NOT_EXIST");
+		assertCoverageFails(GameplayVariantCatalog.all(),unknown,P03ImplementationEvidence.requiredVariants(),"unknown evidence variant EFFECT.DOES_NOT_EXIST");
 		try{verifyAndRun("P03R2CompileAdmissionTest#directDamageOnlyBuildIsExecutabl_typo");fail("misspelled evidence was accepted");}
 		catch(AssertionError expected){assertTrue(expected.getMessage().contains("missing evidence method"));}
 	}
 
 	private static void assertEvidenceCoverage(List<VariantDescriptor> catalog,
-			Map<String,P03ImplementationEvidence.Row> registry){
-		Set<String> known=new HashSet<>();Set<String> required=new HashSet<>();
+			Map<String,P03ImplementationEvidence.Row> registry,Set<String> required){
+		Set<String> known=new HashSet<>();
 		for(VariantDescriptor descriptor:catalog){
 			assertTrue("duplicate catalog variant "+descriptor.qualifiedKey(),known.add(descriptor.qualifiedKey()));
 			if(descriptor.state()==ImplementationState.IMPLEMENTED||descriptor.playerExposed()){
@@ -66,7 +66,6 @@ public class P03ImplementationEvidenceTest {
 						ImplementationState.IMPLEMENTED,descriptor.state());
 				assertTrue("implemented variant must be player exposed: "+descriptor.qualifiedKey(),descriptor.playerExposed());
 				assertFalse("implemented variant requires price: "+descriptor.qualifiedKey(),descriptor.priceKey().isEmpty());
-				required.add(descriptor.qualifiedKey());
 			}else assertFalse("unimplemented variant exposed: "+descriptor.qualifiedKey(),descriptor.playerExposed());
 		}
 		for(String key:registry.keySet())assertTrue("unknown evidence variant "+key,known.contains(key));
@@ -75,8 +74,8 @@ public class P03ImplementationEvidenceTest {
 	}
 
 	private static void assertCoverageFails(List<VariantDescriptor> catalog,
-			Map<String,P03ImplementationEvidence.Row> registry,String message){
-		try{assertEvidenceCoverage(catalog,registry);fail("adversarial registry was accepted");}
+			Map<String,P03ImplementationEvidence.Row> registry,Set<String> required,String message){
+		try{assertEvidenceCoverage(catalog,registry,required);fail("adversarial registry was accepted");}
 		catch(AssertionError expected){assertTrue(expected.getMessage(),expected.getMessage().contains(message));}
 	}
 

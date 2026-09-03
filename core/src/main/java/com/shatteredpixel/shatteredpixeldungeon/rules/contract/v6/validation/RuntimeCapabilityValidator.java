@@ -27,8 +27,8 @@ public final class RuntimeCapabilityValidator {
 		return new DependencyReport(result);
 	}
 	private void check(List<DependencyDiagnostic> out, SkillSpec skill, String path, EffectSpec effect) {
-		CompiledSkill.EffectVariant compiledVariant = effect.variantKey() == com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.EffectVariantKey.DIRECT_DAMAGE
-				? CompiledSkill.EffectVariant.DIRECT_DAMAGE : null;
+		CompiledSkill.EffectVariant compiledVariant = null;
+		try { compiledVariant = CompiledSkill.EffectVariant.valueOf(effect.variantKey().name()); } catch (IllegalArgumentException ignored) { }
 		if (!(effect instanceof UnconfiguredEffectSpec) && (compiledVariant == null || !executors.has(compiledVariant))) {
 			out.add(new DependencyDiagnostic(skill.id(), path, DependencyState.UNSUPPORTED, effect.effectId(), "skill.executor_missing"));
 		}

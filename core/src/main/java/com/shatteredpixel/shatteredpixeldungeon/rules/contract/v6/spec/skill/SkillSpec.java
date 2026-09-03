@@ -84,7 +84,7 @@ public final class SkillSpec implements StableTarget {
 	@Override public RefKind refKind() { return null; }
 	@Override public ImplementationState implementationState() {
 		if (!typed()) return envelopeState;
-		return supportsP03Slice() ? ImplementationState.IMPLEMENTED : ImplementationState.DECLARED;
+		return supportsP04Slice() ? ImplementationState.IMPLEMENTED : ImplementationState.DECLARED;
 	}
 	public String variantKey() { return variantKey; }
 	public boolean typed() { return VARIANT.equals(variantKey); }
@@ -122,28 +122,20 @@ public final class SkillSpec implements StableTarget {
 	private void requireTyped() {
 		if (!typed()) throw new IllegalStateException("legacy skill envelope has no typed payload");
 	}
-	private boolean supportsP03Slice() {
-		if (!(activation instanceof ActiveTriggerSpec) || !(condition instanceof AllOfCondition)
-				|| !((AllOfCondition) condition).children().isEmpty()
-				|| !(effects.primary() instanceof DirectDamageEffectSpec)
-				|| !(delivery instanceof DirectDeliverySpec)
-				|| !(targeting.selector() instanceof SelectedActorSelector)
-				|| !(targeting.coverage() instanceof SingleCoverageSpec)
-				|| !(targeting.filter() instanceof RelationFilterSpec)
-				|| ((RelationFilterSpec) targeting.filter()).relationToClassOwner() != RelationFilterSpec.RelationAlignment.ENEMY
-				|| ((RelationFilterSpec) targeting.filter()).includeSelf()
-				|| modifier != null || !(cost instanceof NoCostSpec) || constraint != null) return false;
-		DirectDamageEffectSpec damage = (DirectDamageEffectSpec) effects.primary();
-		if (!(damage.amount() instanceof FixedValueSpec)
-				|| damage.damageType() != DirectDamageEffectSpec.DamageType.UNTYPED
-				|| damage.defensePolicy() != DirectDamageEffectSpec.NativeDefensePolicy.SPD_NATIVE) return false;
-		if (effects.secondary() == null) return true;
-		return effects.secondary().activation() instanceof ImmediateOnPrimarySuccess
-				&& effects.secondary().effect() instanceof DirectDamageEffectSpec
-				&& ((DirectDamageEffectSpec) effects.secondary().effect()).amount() instanceof FixedValueSpec
-				&& ((DirectDamageEffectSpec) effects.secondary().effect()).damageType()
-				== DirectDamageEffectSpec.DamageType.UNTYPED
-				&& ((DirectDamageEffectSpec) effects.secondary().effect()).defensePolicy()
-				== DirectDamageEffectSpec.NativeDefensePolicy.SPD_NATIVE;
+	private boolean supportsP04Slice() {
+		if (!(activation instanceof ActiveTriggerSpec)||!(condition instanceof AllOfCondition)||constraint!=null)return false;
+		for(ConditionExpr child:((AllOfCondition)condition).children())if(!(child instanceof AlwaysCondition||child instanceof BuiltinStatCompareCondition||child instanceof ResourceCompareCondition))return false;
+		if(!effectSupported(effects.primary()))return false;
+		if(effects.secondary()!=null&&(!(effects.secondary().activation() instanceof ImmediateOnPrimarySuccess)||!effectSupported(effects.secondary().effect())))return false;
+		if(!(delivery instanceof DirectDeliverySpec||delivery instanceof SelfDeliverySpec||delivery instanceof ContactDeliverySpec||delivery instanceof ProjectileDeliverySpec||delivery instanceof TraceDeliverySpec||delivery instanceof GroundDeliverySpec))return false;
+		if(!(targeting.selector() instanceof SelectedActorSelector||targeting.selector() instanceof SelfSelector||targeting.selector() instanceof SelectedCellSelector))return false;
+		if(!(targeting.coverage() instanceof SingleCoverageSpec||targeting.coverage() instanceof AdjacentCoverageSpec||targeting.coverage() instanceof RadiusCoverageSpec||targeting.coverage() instanceof LineCoverageSpec))return false;
+		if(!(targeting.filter() instanceof RelationFilterSpec||targeting.filter() instanceof AnyActorFilterSpec||targeting.filter() instanceof SelfFilterSpec))return false;
+		if(modifier!=null&&!(modifier instanceof RepeatModifierSpec||modifier instanceof IntensityModifierSpec||modifier instanceof ExtendDurationModifierSpec||modifier instanceof PierceModifierSpec||modifier instanceof BounceModifierSpec))return false;
+		return cost instanceof NoCostSpec||cost instanceof ResourceCostSpec||cost instanceof HpCostSpec||cost instanceof ActionTimeCostSpec||cost instanceof CooldownCostSpec||cost instanceof ItemCostSpec;
+	}
+	private static boolean effectSupported(EffectSpec effect){
+		if(effect instanceof DirectDamageEffectSpec)return ((DirectDamageEffectSpec)effect).defensePolicy()==DirectDamageEffectSpec.NativeDefensePolicy.SPD_NATIVE;
+		return effect instanceof PercentMaxHpDamageEffectSpec||effect instanceof MissingHpDamageEffectSpec||effect instanceof ExecuteEffectSpec||effect instanceof ApplyStatusEffectSpec||effect instanceof PushEffectSpec||effect instanceof PullEffectSpec||effect instanceof ThrowEffectSpec||effect instanceof DashEffectSpec||effect instanceof TeleportEffectSpec||effect instanceof SwapPositionEffectSpec||effect instanceof HealEffectSpec||effect instanceof BarrierEffectSpec||effect instanceof TemporaryHpEffectSpec||effect instanceof MitigateEffectSpec||effect instanceof RedirectDamageEffectSpec||effect instanceof CleanseEffectSpec||effect instanceof ResourceOperationEffectSpec;
 	}
 }

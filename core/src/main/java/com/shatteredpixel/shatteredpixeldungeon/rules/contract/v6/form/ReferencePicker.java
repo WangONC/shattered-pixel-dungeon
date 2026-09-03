@@ -53,7 +53,8 @@ public final class ReferencePicker {
 	}
 
 	private static boolean matchesFilter(String filterKey, StableTarget owner, StableTarget target) {
-		if ("all_mode_groups".equals(filterKey) || "all_properties".equals(filterKey)) return true;
+		if ("all_mode_groups".equals(filterKey) || "all_properties".equals(filterKey)
+				|| "all_resources".equals(filterKey)) return true;
 		if ("compatible_entity_capacity".equals(filterKey)) {
 			if (!(owner instanceof EntitySpec) || !(target instanceof EntityCapacitySpec)) return false;
 			return ((EntityCapacitySpec) target).entityTypes().contains(((EntitySpec) owner).type());

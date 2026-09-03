@@ -9,6 +9,8 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalBuildCodec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.component.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.resource.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -144,7 +146,13 @@ public final class BuilderFormController {
 
 		FormFieldSchema schema = field.schema();
 		StableTarget owner = requireTarget(targetId);
-		if (owner instanceof SkillSpec) return skillCommand((SkillSpec) owner, fieldKey, rawValue);
+		if (owner instanceof SkillSpec) {
+			if (schema.kind() == FormFieldSchema.Kind.REFERENCE) {
+				Choice choice=requireEnabledChoice(field,rawValue);ReferenceFieldSchema reference=(ReferenceFieldSchema)schema;
+				return skillReferenceCommand((SkillSpec)owner,fieldKey,typedRef(reference.expectedKind(),choice.value(),choice.label()));
+			}
+			return skillCommand((SkillSpec) owner, fieldKey, rawValue);
+		}
 		switch (schema.kind()) {
 			case TEXT:
 				return new BuilderCommand.SetFieldValue(targetId, form.variantKey(), fieldKey, rawValue);
@@ -216,6 +224,8 @@ public final class BuilderFormController {
 			String reason = disabledSkillField((SkillSpec) owner, schema.fieldKey());
 			if (reason != null) return disabled(schema, value, reason);
 		}
+		String classNodeReason=disabledClassNodeField(owner,schema.fieldKey());
+		if(classNodeReason!=null)return disabled(schema,value,classNodeReason);
 
 		switch (schema.kind()) {
 			case TEXT:
@@ -224,7 +234,9 @@ public final class BuilderFormController {
 			case NUMBER:
 				return numberField(owner, variant, (NumberFieldSchema) schema, value);
 			case ENUM:
-				return enumField(schema, value, ((EnumFieldSchema) schema).optionKeys());
+				List<String> options=((EnumFieldSchema)schema).optionKeys();
+				if(owner instanceof SkillSpec)options=skillEnumOptions((SkillSpec)owner,schema.fieldKey(),options);
+				return enumField(schema, value, options);
 			case ENUM_LIST:
 				return enumListField(owner, variant, (EnumListFieldSchema) schema, value);
 			case BOOLEAN:
@@ -392,28 +404,43 @@ public final class BuilderFormController {
 			SkillSpec v=(SkillSpec)owner;
 			if(!v.typed()){if("variant_key".equals(key))return v.variantKey();if("diagnostics".equals(key))return "";throw new IllegalArgumentException("legacy skill envelope field is read-only: "+key);}
 			if("activation_variant".equals(key))return v.activation().variantKey();
-			if("condition_variant".equals(key))return v.condition() instanceof AllOfCondition&&((AllOfCondition)v.condition()).children().isEmpty()?"ALWAYS":v.condition().variantKey();
+			if("condition_variant".equals(key)){if(v.condition() instanceof UnconfiguredConditionExpr)return UnconfiguredConditionExpr.VARIANT;ConditionExpr leaf=conditionLeaf(v);return leaf==null?"ALWAYS":leaf.variantKey();}
+			if(key.startsWith("condition_")&&!"condition_variant".equals(key))return conditionValue(v,key.substring("condition_".length()));
 			if("effect_primary_family".equals(key))return v.effects().primary().family()==null?"UNCONFIGURED":v.effects().primary().family().name();
 			if("effect_primary_variant".equals(key))return v.effects().primary().variantKey().name();
-			if("effect_primary_amount".equals(key))return v.effects().primary() instanceof DirectDamageEffectSpec?Integer.toString(((FixedValueSpec)((DirectDamageEffectSpec)v.effects().primary()).amount()).value()):"1";
+			if(key.startsWith("effect_primary_")&&!"effect_primary_family".equals(key)&&!"effect_primary_variant".equals(key))return effectValue(v.effects().primary(),key.substring("effect_primary_".length()));
 			if("effect_primary_damage_type".equals(key))return v.effects().primary() instanceof DirectDamageEffectSpec?((DirectDamageEffectSpec)v.effects().primary()).damageType().name():"UNCONFIGURED";
 			if("effect_primary_defense_policy".equals(key))return v.effects().primary() instanceof DirectDamageEffectSpec?((DirectDamageEffectSpec)v.effects().primary()).defensePolicy().name():"UNCONFIGURED";
 			if("effect_secondary_family".equals(key))return v.effects().secondary()==null?"NONE":v.effects().secondary().effect().family()==null?"UNCONFIGURED":v.effects().secondary().effect().family().name();
 			if("effect_secondary_variant".equals(key))return v.effects().secondary()==null?"UNCONFIGURED":v.effects().secondary().effect().variantKey().name();
-			if("effect_secondary_amount".equals(key))return v.effects().secondary()!=null&&v.effects().secondary().effect() instanceof DirectDamageEffectSpec?Integer.toString(((FixedValueSpec)((DirectDamageEffectSpec)v.effects().secondary().effect()).amount()).value()):"1";
 			if("effect_secondary_activation".equals(key))return v.effects().secondary()==null?"UNCONFIGURED":v.effects().secondary().activation().variantKey();
+			if(key.startsWith("effect_secondary_")&&!"effect_secondary_family".equals(key)&&!"effect_secondary_variant".equals(key)&&!"effect_secondary_activation".equals(key))return effectValue(v.effects().secondary()==null?null:v.effects().secondary().effect(),key.substring("effect_secondary_".length()));
 			if("delivery_variant".equals(key))return v.delivery().variantKey();
 			if("delivery_requires_line_of_sight".equals(key))return Boolean.toString(v.delivery() instanceof DirectDeliverySpec&&((DirectDeliverySpec)v.delivery()).requiresLineOfSight());
+			if("delivery_trace_width".equals(key))return Integer.toString(v.delivery() instanceof TraceDeliverySpec?((TraceDeliverySpec)v.delivery()).width():1);
+			if("delivery_trace_stops_at_blocking_cell".equals(key))return Boolean.toString(!(v.delivery() instanceof TraceDeliverySpec)||((TraceDeliverySpec)v.delivery()).stopsAtFirstBlockingCell());
+			if("delivery_ground_requires_visible_cell".equals(key))return Boolean.toString(!(v.delivery() instanceof GroundDeliverySpec)||((GroundDeliverySpec)v.delivery()).requiresVisibleCell());
 			if("targeting_selector".equals(key))return v.targeting().selector().variantKey();
 			if("targeting_coverage".equals(key))return v.targeting().coverage().variantKey();
-			if("targeting_filter".equals(key))return v.targeting().filter() instanceof RelationFilterSpec?"RELATION_ENEMY_EXCLUDE_SELF":v.targeting().filter().variantKey();
+			if("targeting_filter".equals(key))return filterVariant(v.targeting().filter());
 			if("targeting_range".equals(key))return Integer.toString(v.targeting().range());
 			if("targeting_maximum_targets".equals(key))return Integer.toString(v.targeting().maximumTargets());
+			if("targeting_radius".equals(key))return Integer.toString(v.targeting().coverage() instanceof RadiusCoverageSpec?((RadiusCoverageSpec)v.targeting().coverage()).radius():1);
+			if("targeting_line_length".equals(key))return Integer.toString(v.targeting().coverage() instanceof LineCoverageSpec?((LineCoverageSpec)v.targeting().coverage()).length():3);
+			if("targeting_line_width".equals(key))return Integer.toString(v.targeting().coverage() instanceof LineCoverageSpec?((LineCoverageSpec)v.targeting().coverage()).width():1);
 			if("targeting_line_of_sight".equals(key))return v.targeting().lineOfSight().name();
 			if("targeting_ordering".equals(key))return v.targeting().ordering().name();
 			if("modifier_variant".equals(key))return v.modifier()==null?"NONE":v.modifier().variantKey();
+			if(key.startsWith("modifier_"))return modifierValue(v.modifier(),key.substring("modifier_".length()));
 			if("cost_variant".equals(key))return v.cost().variantKey();
+			if("cost_amount".equals(key))return costAmount(v.cost());
+			if("cost_item_category".equals(key))return v.cost() instanceof ItemCostSpec?((ItemCostSpec)v.cost()).itemFilter().category().name():"ANY_CONSUMABLE";
+			if("cost_resource".equals(key))return v.cost() instanceof ResourceCostSpec?((ResourceCostSpec)v.cost()).resource().targetId().value():"None";
 			if("constraint_variant".equals(key))return v.constraint()==null?"NONE":v.constraint().variantKey();
+		} else if(owner instanceof BasicAttackComponentSpec){BasicAttackComponentSpec v=(BasicAttackComponentSpec)owner;if("availability".equals(key))return v.availability().name();if("damage_numerator".equals(key))return Integer.toString(v.damageNumerator());if("damage_denominator".equals(key))return Integer.toString(v.damageDenominator());if("allowed_weapons".equals(key))return v.allowedWeapons().category().name();if("action_time_turns".equals(key))return Integer.toString(v.actionTimeTurns());
+		} else if(owner instanceof ResourceFlowComponentSpec){ResourceFlowComponentSpec v=(ResourceFlowComponentSpec)owner;if("event_type".equals(key))return v.trigger() instanceof EventTriggerSpec?((EventTriggerSpec)v.trigger()).event().name():"ACTIVE";String operation=operationValue(v.operation(),key);if(operation!=null)return operation;
+		} else if(owner instanceof ActiveResourceOperationComponentSpec){ActiveResourceOperationComponentSpec v=(ActiveResourceOperationComponentSpec)owner;if("action_time_turns".equals(key))return Integer.toString(v.actionTimeTurns());if("cost_variant".equals(key))return v.cost().variantKey();if("cost_amount".equals(key))return costAmount(v.cost());if("cost.resource".equals(key))return v.cost() instanceof ResourceCostSpec?((ResourceCostSpec)v.cost()).resource().targetId().value():"None";String operation=operationValue(v.operation(),key);if(operation!=null)return operation;
+		} else if(owner instanceof ResourceClassOperationSpec){ResourceClassOperationSpec v=(ResourceClassOperationSpec)owner;if("action_time_turns".equals(key))return Integer.toString(v.actionTimeTurns());if("hud_visible".equals(key))return Boolean.toString(v.hudVisible());if("hud_order".equals(key))return Integer.toString(v.hudOrder());if("cost_variant".equals(key))return v.cost().variantKey();if("cost_amount".equals(key))return costAmount(v.cost());if("cost.resource".equals(key))return v.cost() instanceof ResourceCostSpec?((ResourceCostSpec)v.cost()).resource().targetId().value():"None";String operation=operationValue(v.operation(),key);if(operation!=null)return operation;
 		} else if (owner instanceof ContractNodeSpec) {
 			if("variant_key".equals(key))return ((ContractNodeSpec)owner).variantKey();
 		}
@@ -421,9 +448,47 @@ public final class BuilderFormController {
 		throw new IllegalArgumentException("unknown form field value: " + owner.getClass().getSimpleName() + "." + key);
 	}
 
+	private static String conditionValue(SkillSpec skill,String field){
+		ConditionExpr leaf=conditionLeaf(skill);if("subject".equals(field))return leaf instanceof BuiltinStatCompareCondition?((BuiltinStatCompareCondition)leaf).subject().name():"CLASS_OWNER";
+		if("builtin_stat".equals(field))return leaf instanceof BuiltinStatCompareCondition?((BuiltinStatCompareCondition)leaf).stat().name():"HP_PERCENT";
+		if("operator".equals(field))return leaf instanceof BuiltinStatCompareCondition?((BuiltinStatCompareCondition)leaf).operator().name():leaf instanceof ResourceCompareCondition?((ResourceCompareCondition)leaf).operator().name():"GTE";
+		if("value".equals(field))return leaf instanceof BuiltinStatCompareCondition?Integer.toString(fixed(((BuiltinStatCompareCondition)leaf).value())):leaf instanceof ResourceCompareCondition?Integer.toString(((ResourceCompareCondition)leaf).value()):"1";
+		if("resource".equals(field))return leaf instanceof ResourceCompareCondition?((ResourceCompareCondition)leaf).resource().targetId().value():"None";
+		throw new IllegalArgumentException("unknown condition form field "+field);
+	}
+	private static ConditionExpr conditionLeaf(SkillSpec skill){return skill.condition() instanceof AllOfCondition&&!((AllOfCondition)skill.condition()).children().isEmpty()?((AllOfCondition)skill.condition()).children().get(0):null;}
+	private static String effectValue(EffectSpec effect,String field){
+		if(effect instanceof ResourceOperationEffectSpec&&field.startsWith("operation_"))return operationValue(((ResourceOperationEffectSpec)effect).operation(),"operation."+field.substring("operation_".length()));
+		if("damage_type".equals(field)){if(effect instanceof DirectDamageEffectSpec)return ((DirectDamageEffectSpec)effect).damageType().name();if(effect instanceof MissingHpDamageEffectSpec)return ((MissingHpDamageEffectSpec)effect).damageType().name();return "UNTYPED";}
+		if("defense_policy".equals(field))return effect instanceof DirectDamageEffectSpec?((DirectDamageEffectSpec)effect).defensePolicy().name():"SPD_NATIVE";
+		if("amount".equals(field)){ValueSpec value=null;if(effect instanceof DirectDamageEffectSpec)value=((DirectDamageEffectSpec)effect).amount();else if(effect instanceof HealEffectSpec)value=((HealEffectSpec)effect).amount();else if(effect instanceof BarrierEffectSpec)value=((BarrierEffectSpec)effect).amount();else if(effect instanceof TemporaryHpEffectSpec)value=((TemporaryHpEffectSpec)effect).amount();return Integer.toString(value==null?1:fixed(value));}
+		if("percent".equals(field)){if(effect instanceof PercentMaxHpDamageEffectSpec)return Integer.toString(((PercentMaxHpDamageEffectSpec)effect).percent());if(effect instanceof MitigateEffectSpec)return Integer.toString(((MitigateEffectSpec)effect).percent());if(effect instanceof RedirectDamageEffectSpec)return Integer.toString(((RedirectDamageEffectSpec)effect).percent());return "10";}
+		if("absolute_cap".equals(field)){if(effect instanceof PercentMaxHpDamageEffectSpec)return Integer.toString(((PercentMaxHpDamageEffectSpec)effect).absoluteCap());if(effect instanceof MissingHpDamageEffectSpec)return Integer.toString(((MissingHpDamageEffectSpec)effect).absoluteCap());return "0";}
+		if("base_amount".equals(field))return Integer.toString(effect instanceof MissingHpDamageEffectSpec?fixed(((MissingHpDamageEffectSpec)effect).baseAmount()):1);
+		if("missing_hp_numerator".equals(field))return Integer.toString(effect instanceof MissingHpDamageEffectSpec?((MissingHpDamageEffectSpec)effect).missingHpNumerator():1);
+		if("missing_hp_denominator".equals(field))return Integer.toString(effect instanceof MissingHpDamageEffectSpec?((MissingHpDamageEffectSpec)effect).missingHpDenominator():2);
+		if("hp_percent_threshold".equals(field))return Integer.toString(effect instanceof ExecuteEffectSpec?((ExecuteEffectSpec)effect).hpPercentThreshold():20);
+		if("status".equals(field))return effect instanceof ApplyStatusEffectSpec?((ApplyStatusEffectSpec)effect).status().name():"POISON";
+		if("intensity".equals(field))return Integer.toString(effect instanceof ApplyStatusEffectSpec?fixed(((ApplyStatusEffectSpec)effect).intensity()):1);
+		if("duration_turns".equals(field)){DurationSpec duration=effect instanceof ApplyStatusEffectSpec?((ApplyStatusEffectSpec)effect).duration():effect instanceof TemporaryHpEffectSpec?((TemporaryHpEffectSpec)effect).duration():effect instanceof MitigateEffectSpec?((MitigateEffectSpec)effect).duration():effect instanceof RedirectDamageEffectSpec?((RedirectDamageEffectSpec)effect).duration():null;return Integer.toString(duration==null?3:duration.turns());}
+		if("recipient".equals(field))return effect instanceof RedirectDamageEffectSpec?((RedirectDamageEffectSpec)effect).recipient().name():"CLASS_OWNER";
+		if("distance".equals(field)){if(effect instanceof PushEffectSpec)return Integer.toString(((PushEffectSpec)effect).distance());if(effect instanceof PullEffectSpec)return Integer.toString(((PullEffectSpec)effect).distance());if(effect instanceof ThrowEffectSpec)return Integer.toString(((ThrowEffectSpec)effect).distance());return "1";}
+		if("maximum_distance".equals(field))return Integer.toString(effect instanceof DashEffectSpec?((DashEffectSpec)effect).maximumDistance():3);
+		if("maximum_range".equals(field))return Integer.toString(effect instanceof TeleportEffectSpec?((TeleportEffectSpec)effect).maximumRange():3);
+		if("maximum_count".equals(field))return Integer.toString(effect instanceof CleanseEffectSpec?((CleanseEffectSpec)effect).maximumCount():1);
+		return "1";
+	}
+	private static String modifierValue(ModifierSpec modifier,String field){if("repeat_count".equals(field))return Integer.toString(modifier instanceof RepeatModifierSpec?((RepeatModifierSpec)modifier).repeatCount():1);if("intensity_numerator".equals(field))return Integer.toString(modifier instanceof IntensityModifierSpec?((IntensityModifierSpec)modifier).numerator():2);if("intensity_denominator".equals(field))return Integer.toString(modifier instanceof IntensityModifierSpec?((IntensityModifierSpec)modifier).denominator():1);if("additional_turns".equals(field))return Integer.toString(modifier instanceof ExtendDurationModifierSpec?((ExtendDurationModifierSpec)modifier).additionalTurns():1);if("additional_targets".equals(field))return Integer.toString(modifier instanceof PierceModifierSpec?((PierceModifierSpec)modifier).additionalTargets():1);if("bounces".equals(field))return Integer.toString(modifier instanceof BounceModifierSpec?((BounceModifierSpec)modifier).bounces():1);if("bounce_range".equals(field))return Integer.toString(modifier instanceof BounceModifierSpec?((BounceModifierSpec)modifier).bounceRange():2);throw new IllegalArgumentException("unknown modifier form field "+field);}
+	private static String filterVariant(EntityFilterExpr filter){if(filter instanceof RelationFilterSpec){RelationFilterSpec relation=(RelationFilterSpec)filter;return relation.relationToClassOwner()==RelationFilterSpec.RelationAlignment.ENEMY?"RELATION_ENEMY_EXCLUDE_SELF":relation.includeSelf()?"RELATION_ALLY_INCLUDE_SELF":"RELATION_ALLY_EXCLUDE_SELF";}return filter.variantKey();}
+	private static int fixed(ValueSpec value){if(value instanceof FixedValueSpec)return ((FixedValueSpec)value).value();if(value instanceof ScaledValueSpec)return ((ScaledValueSpec)value).base();return 0;}
+
 	private static TypedRef currentReference(StableTarget owner, String key) {
 		if (owner instanceof ModeSpec && "group".equals(key)) return ((ModeSpec) owner).group();
 		if (owner instanceof EntitySpec && "capacity".equals(key)) return ((EntitySpec) owner).capacity();
+		if(owner instanceof SkillSpec){SkillSpec skill=(SkillSpec)owner;if("condition_resource".equals(key)&&conditionLeaf(skill) instanceof ResourceCompareCondition)return ((ResourceCompareCondition)conditionLeaf(skill)).resource();if("cost_resource".equals(key)&&skill.cost() instanceof ResourceCostSpec)return ((ResourceCostSpec)skill.cost()).resource();if(key.startsWith("effect_primary_operation_")&&skill.effects().primary() instanceof ResourceOperationEffectSpec)return operationReference(((ResourceOperationEffectSpec)skill.effects().primary()).operation(),"operation."+key.substring("effect_primary_operation_".length()));if(key.startsWith("effect_secondary_operation_")&&skill.effects().secondary()!=null&&skill.effects().secondary().effect() instanceof ResourceOperationEffectSpec)return operationReference(((ResourceOperationEffectSpec)skill.effects().secondary().effect()).operation(),"operation."+key.substring("effect_secondary_operation_".length()));}
+		if(owner instanceof ResourceFlowComponentSpec)return operationReference(((ResourceFlowComponentSpec)owner).operation(),key);
+		if(owner instanceof ActiveResourceOperationComponentSpec){ActiveResourceOperationComponentSpec value=(ActiveResourceOperationComponentSpec)owner;if("cost.resource".equals(key)&&value.cost() instanceof ResourceCostSpec)return ((ResourceCostSpec)value.cost()).resource();return operationReference(value.operation(),key);}
+		if(owner instanceof ResourceClassOperationSpec){ResourceClassOperationSpec value=(ResourceClassOperationSpec)owner;if("cost.resource".equals(key)&&value.cost() instanceof ResourceCostSpec)return ((ResourceCostSpec)value.cost()).resource();return operationReference(value.operation(),key);}
 		return null;
 	}
 
@@ -451,42 +516,72 @@ public final class BuilderFormController {
 	}
 
 	private static String variantOf(StableTarget target) {
-		if(target instanceof ResourceSpec)return V6FormSchemas.RESOURCE;if(target instanceof MarkSpec)return V6FormSchemas.MARK;if(target instanceof ModeGroupSpec)return V6FormSchemas.MODE_GROUP;if(target instanceof ModeSpec)return V6FormSchemas.MODE;if(target instanceof EntityCapacitySpec)return V6FormSchemas.ENTITY_CAPACITY;if(target instanceof EntitySpec)return V6FormSchemas.ENTITY;if(target instanceof AbilityPoolSpec)return V6FormSchemas.ABILITY_POOL;if(target instanceof PropertySpec)return V6FormSchemas.PROPERTY;if(target instanceof SynthesisRecipeSpec)return V6FormSchemas.RECIPE;if(target instanceof SkillSpec)return ((SkillSpec)target).typed()?V6FormSchemas.SKILL:V6FormSchemas.CONTRACT_NODE;if(target instanceof ContractNodeSpec)return V6FormSchemas.CONTRACT_NODE;throw new IllegalArgumentException("unknown declaration type "+target.getClass().getName());
+		if(target instanceof ResourceSpec)return V6FormSchemas.RESOURCE;if(target instanceof MarkSpec)return V6FormSchemas.MARK;if(target instanceof ModeGroupSpec)return V6FormSchemas.MODE_GROUP;if(target instanceof ModeSpec)return V6FormSchemas.MODE;if(target instanceof EntityCapacitySpec)return V6FormSchemas.ENTITY_CAPACITY;if(target instanceof EntitySpec)return V6FormSchemas.ENTITY;if(target instanceof AbilityPoolSpec)return V6FormSchemas.ABILITY_POOL;if(target instanceof PropertySpec)return V6FormSchemas.PROPERTY;if(target instanceof SynthesisRecipeSpec)return V6FormSchemas.RECIPE;if(target instanceof SkillSpec)return ((SkillSpec)target).typed()?V6FormSchemas.SKILL:V6FormSchemas.CONTRACT_NODE;if(target instanceof BasicAttackComponentSpec)return V6FormSchemas.BASIC_ATTACK;if(target instanceof ResourceFlowComponentSpec)return V6FormSchemas.RESOURCE_FLOW;if(target instanceof ActiveResourceOperationComponentSpec)return V6FormSchemas.ACTIVE_RESOURCE_OPERATION;if(target instanceof ResourceClassOperationSpec)return V6FormSchemas.RESOURCE_CLASS_OPERATION;if(target instanceof ContractNodeSpec)return V6FormSchemas.CONTRACT_NODE;throw new IllegalArgumentException("unknown declaration type "+target.getClass().getName());
 	}
+
+	private static String operationValue(ResourceOperationSpec operation,String key){if("operation_variant".equals(key)||"operation.variant".equals(key))return operation.variant().name();if("operation.amount".equals(key)){if(operation instanceof GainResourceSpec)return Integer.toString(fixed(((GainResourceSpec)operation).amount()));if(operation instanceof DrainResourceSpec)return Integer.toString(fixed(((DrainResourceSpec)operation).amount()));if(operation instanceof SetResourceSpec)return Integer.toString(fixed(((SetResourceSpec)operation).value()));if(operation instanceof ReserveResourceSpec)return Integer.toString(((ReserveResourceSpec)operation).amount());return "1";}if("operation.source_amount".equals(key))return Integer.toString(operation instanceof ConvertResourceSpec?((ConvertResourceSpec)operation).sourceAmount():1);if("operation.target_amount".equals(key))return Integer.toString(operation instanceof ConvertResourceSpec?((ConvertResourceSpec)operation).targetAmount():1);if("operation.duration_turns".equals(key)){if(operation instanceof ReserveResourceSpec)return Integer.toString(((ReserveResourceSpec)operation).durationTurns());if(operation instanceof SuppressResourceSpec)return Integer.toString(((SuppressResourceSpec)operation).durationTurns());return "1";}if("operation.resource".equals(key)||"operation.source".equals(key)||"operation.target".equals(key)){TypedRef ref=operationReference(operation,key);return ref==null?"None":ref.targetId().value();}return null;}
+	private static TypedRef operationReference(ResourceOperationSpec operation,String key){if("operation.source".equals(key)&&operation instanceof ConvertResourceSpec)return ((ConvertResourceSpec)operation).source();if("operation.target".equals(key)&&operation instanceof ConvertResourceSpec)return ((ConvertResourceSpec)operation).target();if("operation.resource".equals(key)&&!(operation instanceof ConvertResourceSpec)&&!operation.referencedResources().isEmpty())return operation.referencedResources().get(0);return null;}
+	private static String costAmount(CostSpec cost){if(cost instanceof ResourceCostSpec)return Integer.toString(((ResourceCostSpec)cost).amount());if(cost instanceof HpCostSpec)return Integer.toString(((HpCostSpec)cost).amount());if(cost instanceof ActionTimeCostSpec)return Integer.toString(((ActionTimeCostSpec)cost).turns());if(cost instanceof CooldownCostSpec)return Integer.toString(((CooldownCostSpec)cost).turns());return "1";}
 
 	private static BuilderCommand skillCommand(SkillSpec skill,String key,String value){String id=skill.id().value();
 		if("display_name".equals(key))return new BuilderCommand.RenameDeclaration(id,value);
 		if("activation_variant".equals(key))return new BuilderCommand.SelectTriggerVariant(id,value);
 		if("condition_variant".equals(key))return new BuilderCommand.SelectConditionVariant(id,value);
+		if(key.startsWith("condition_")&&!"condition_resource".equals(key)){ConditionExpr leaf=conditionLeaf(skill);if(leaf==null)throw new IllegalArgumentException("condition is not configured");String field=key.substring("condition_".length());if("builtin_stat".equals(field))field="stat";return new BuilderCommand.SetTypedSkillField(id,"condition.0",leaf.variantKey(),field,value);}
 		if("effect_primary_family".equals(key))return new BuilderCommand.SelectEffectFamily(id,"PRIMARY",value);
 		if("effect_primary_variant".equals(key))return new BuilderCommand.SelectEffectVariant(id,"PRIMARY",value);
-		if("effect_primary_amount".equals(key))return new BuilderCommand.SetTypedSkillField(id,"effects.primary","DIRECT_DAMAGE","amount",value);
-		if("effect_primary_damage_type".equals(key))return new BuilderCommand.SetTypedSkillField(id,"effects.primary","DIRECT_DAMAGE","damage_type",value);
-		if("effect_primary_defense_policy".equals(key))return new BuilderCommand.SetTypedSkillField(id,"effects.primary","DIRECT_DAMAGE","defense_policy",value);
+		if(key.startsWith("effect_primary_"))return effectFieldCommand(id,"effects.primary",skill.effects().primary(),key.substring("effect_primary_".length()),value);
 		if("effect_secondary_family".equals(key))return new BuilderCommand.SelectEffectFamily(id,"IMMEDIATE_SECONDARY",value);
 		if("effect_secondary_variant".equals(key))return new BuilderCommand.SelectEffectVariant(id,"IMMEDIATE_SECONDARY",value);
-		if("effect_secondary_amount".equals(key))return new BuilderCommand.SetTypedSkillField(id,"effects.secondary","DIRECT_DAMAGE","amount",value);
+		if(key.startsWith("effect_secondary_")&&!"effect_secondary_activation".equals(key)){if(skill.effects().secondary()==null)throw new IllegalArgumentException("secondary effect absent");return effectFieldCommand(id,"effects.secondary",skill.effects().secondary().effect(),key.substring("effect_secondary_".length()),value);}
 		if("delivery_variant".equals(key))return new BuilderCommand.SetDelivery(id,value);
 		if("delivery_requires_line_of_sight".equals(key))return new BuilderCommand.SetTypedSkillField(id,"delivery","DIRECT","requires_line_of_sight",value);
+		if("delivery_trace_width".equals(key))return new BuilderCommand.SetTypedSkillField(id,"delivery","TRACE","width",value);
+		if("delivery_trace_stops_at_blocking_cell".equals(key))return new BuilderCommand.SetTypedSkillField(id,"delivery","TRACE","stops_at_first_blocking_cell",value);
+		if("delivery_ground_requires_visible_cell".equals(key))return new BuilderCommand.SetTypedSkillField(id,"delivery","GROUND","requires_visible_cell",value);
 		if("targeting_selector".equals(key))return new BuilderCommand.SetTargetingSelector(id,value);
 		if("targeting_coverage".equals(key))return new BuilderCommand.SetTargetingCoverage(id,value);
 		if("targeting_filter".equals(key))return new BuilderCommand.SetTargetingFilter(id,value);
 		if("targeting_range".equals(key))return new BuilderCommand.SetTypedSkillField(id,"targeting","TARGETING","range",value);
 		if("targeting_maximum_targets".equals(key))return new BuilderCommand.SetTypedSkillField(id,"targeting","TARGETING","maximum_targets",value);
+		if("targeting_radius".equals(key))return new BuilderCommand.SetTypedSkillField(id,"targeting","TARGETING","radius",value);
+		if("targeting_line_length".equals(key))return new BuilderCommand.SetTypedSkillField(id,"targeting","TARGETING","line_length",value);
+		if("targeting_line_width".equals(key))return new BuilderCommand.SetTypedSkillField(id,"targeting","TARGETING","line_width",value);
 		if("modifier_variant".equals(key))return new BuilderCommand.SetModifier(id,value);
+		if(key.startsWith("modifier_")){String field=key.substring("modifier_".length());if(field.startsWith("intensity_"))field=field.substring("intensity_".length());return new BuilderCommand.SetTypedSkillField(id,"modifier",skill.modifier().variantKey(),field,value);}
 		if("cost_variant".equals(key))return new BuilderCommand.SetCost(id,value);
+		if("cost_amount".equals(key)){String field=skill.cost() instanceof ActionTimeCostSpec||skill.cost() instanceof CooldownCostSpec?"turns":skill.cost() instanceof ItemCostSpec?"count":"amount";return new BuilderCommand.SetTypedSkillField(id,"cost",skill.cost().variantKey(),field,value);}
+		if("cost_item_category".equals(key))return new BuilderCommand.SetTypedSkillField(id,"cost",skill.cost().variantKey(),"item_category",value);
 		if("constraint_variant".equals(key))return new BuilderCommand.SetSkillConstraint(id,value);
-		throw new IllegalArgumentException("P03 skill field is read-only: "+key);
+		throw new IllegalArgumentException("P04 skill field is read-only: "+key);
 	}
+	private static BuilderCommand effectFieldCommand(String id,String path,EffectSpec effect,String field,String value){if(effect==null)throw new IllegalArgumentException("effect absent");if(field.startsWith("operation_")){String operationField=field.substring("operation_".length());field="variant".equals(operationField)?"operation_variant":operationField;}return new BuilderCommand.SetTypedSkillField(id,path,effect.variantKey().name(),field,value);}
+	private static BuilderCommand skillReferenceCommand(SkillSpec skill,String key,TypedRef reference){String id=skill.id().value();if("condition_resource".equals(key))return new BuilderCommand.SetTypedSkillReference(id,"condition.0","RESOURCE_COMPARE","resource",reference);if("cost_resource".equals(key))return new BuilderCommand.SetTypedSkillReference(id,"cost","RESOURCE","resource",reference);if(key.startsWith("effect_primary_operation_"))return new BuilderCommand.SetTypedSkillReference(id,"effects.primary","RESOURCE_OPERATION",key.substring("effect_primary_operation_".length()),reference);if(key.startsWith("effect_secondary_operation_"))return new BuilderCommand.SetTypedSkillReference(id,"effects.secondary","RESOURCE_OPERATION",key.substring("effect_secondary_operation_".length()),reference);throw new IllegalArgumentException("unknown P04 skill reference field "+key);}
 
 	private static String disabledSkillField(SkillSpec skill,String key){
-		if("effect_primary_variant".equals(key)&&skill.effects().primary().family()!=EffectFamily.DAMAGE)return "Choose the DAMAGE family first.";
-		if(("effect_primary_amount".equals(key)||"effect_primary_damage_type".equals(key)||"effect_primary_defense_policy".equals(key))&&!(skill.effects().primary() instanceof DirectDamageEffectSpec))return "Choose DIRECT_DAMAGE first.";
-		if("effect_secondary_variant".equals(key)&&(skill.effects().secondary()==null||skill.effects().secondary().effect().family()!=EffectFamily.DAMAGE))return "Choose the secondary DAMAGE family first.";
-		if(("effect_secondary_amount".equals(key)||"effect_secondary_activation".equals(key))&&(skill.effects().secondary()==null||!(skill.effects().secondary().effect() instanceof DirectDamageEffectSpec)))return "Choose the immediate secondary DIRECT_DAMAGE first.";
+		ConditionExpr leaf=conditionLeaf(skill);if(key.startsWith("condition_")&&!"condition_variant".equals(key)){if("condition_resource".equals(key)&&!(leaf instanceof ResourceCompareCondition))return "Choose RESOURCE_COMPARE first.";if(("condition_subject".equals(key)||"condition_builtin_stat".equals(key))&&!(leaf instanceof BuiltinStatCompareCondition))return "Choose BUILTIN_STAT_COMPARE first.";if(("condition_operator".equals(key)||"condition_value".equals(key))&&!(leaf instanceof BuiltinStatCompareCondition)&&!(leaf instanceof ResourceCompareCondition))return "Choose a typed condition first.";}
+		if("effect_primary_variant".equals(key)&&skill.effects().primary().family()==null)return "Choose an effect family first.";
+		if(key.startsWith("effect_primary_")&&!"effect_primary_family".equals(key)&&!"effect_primary_variant".equals(key)&&!effectParameterApplies(skill.effects().primary(),key.substring("effect_primary_".length())))return "This parameter does not belong to the selected primary effect.";
+		if("effect_secondary_variant".equals(key)&&(skill.effects().secondary()==null||skill.effects().secondary().effect().family()==null))return "Choose a secondary effect family first.";
+		if("effect_secondary_activation".equals(key)&&skill.effects().secondary()==null)return "Choose a secondary effect first.";
+		if(key.startsWith("effect_secondary_")&&!"effect_secondary_family".equals(key)&&!"effect_secondary_variant".equals(key)&&!"effect_secondary_activation".equals(key)&&(skill.effects().secondary()==null||!effectParameterApplies(skill.effects().secondary().effect(),key.substring("effect_secondary_".length()))))return "This parameter does not belong to the selected secondary effect.";
 		if("delivery_requires_line_of_sight".equals(key)&&!(skill.delivery() instanceof DirectDeliverySpec))return "Choose DIRECT delivery first.";
+		if(("delivery_trace_width".equals(key)||"delivery_trace_stops_at_blocking_cell".equals(key))&&!(skill.delivery() instanceof TraceDeliverySpec))return "Choose TRACE delivery first.";
+		if("delivery_ground_requires_visible_cell".equals(key)&&!(skill.delivery() instanceof GroundDeliverySpec))return "Choose GROUND delivery first.";
+		if("targeting_radius".equals(key)&&!(skill.targeting().coverage() instanceof RadiusCoverageSpec))return "Choose RADIUS coverage first.";
+		if(("targeting_line_length".equals(key)||"targeting_line_width".equals(key))&&!(skill.targeting().coverage() instanceof LineCoverageSpec))return "Choose LINE coverage first.";
+		if(key.startsWith("modifier_")&&!"modifier_variant".equals(key)&&!modifierParameterApplies(skill.modifier(),key.substring("modifier_".length())))return "This parameter does not belong to the selected modifier.";
+		if("cost_resource".equals(key)&&!(skill.cost() instanceof ResourceCostSpec))return "Choose RESOURCE cost first.";
+		if("cost_amount".equals(key)&&(skill.cost() instanceof NoCostSpec))return "Choose a priced cost first.";
+		if("cost_item_category".equals(key)&&!(skill.cost() instanceof ItemCostSpec))return "Choose ITEM cost first.";
 		return null;
 	}
+	private static boolean effectParameterApplies(EffectSpec effect,String field){if(effect==null||effect instanceof UnconfiguredEffectSpec)return false;if(field.startsWith("operation_"))return effect instanceof ResourceOperationEffectSpec;if("amount".equals(field))return effect instanceof DirectDamageEffectSpec||effect instanceof HealEffectSpec||effect instanceof BarrierEffectSpec||effect instanceof TemporaryHpEffectSpec;if("damage_type".equals(field))return effect instanceof DirectDamageEffectSpec||effect instanceof MissingHpDamageEffectSpec;if("defense_policy".equals(field))return effect instanceof DirectDamageEffectSpec;if("percent".equals(field))return effect instanceof PercentMaxHpDamageEffectSpec||effect instanceof MitigateEffectSpec||effect instanceof RedirectDamageEffectSpec;if("absolute_cap".equals(field))return effect instanceof PercentMaxHpDamageEffectSpec||effect instanceof MissingHpDamageEffectSpec;if("base_amount".equals(field)||"missing_hp_numerator".equals(field)||"missing_hp_denominator".equals(field))return effect instanceof MissingHpDamageEffectSpec;if("hp_percent_threshold".equals(field))return effect instanceof ExecuteEffectSpec;if("status".equals(field)||"intensity".equals(field))return effect instanceof ApplyStatusEffectSpec;if("duration_turns".equals(field))return effect instanceof ApplyStatusEffectSpec||effect instanceof TemporaryHpEffectSpec||effect instanceof MitigateEffectSpec||effect instanceof RedirectDamageEffectSpec;if("recipient".equals(field))return effect instanceof RedirectDamageEffectSpec;if("distance".equals(field))return effect instanceof PushEffectSpec||effect instanceof PullEffectSpec||effect instanceof ThrowEffectSpec;if("maximum_distance".equals(field))return effect instanceof DashEffectSpec;if("maximum_range".equals(field))return effect instanceof TeleportEffectSpec;if("maximum_count".equals(field))return effect instanceof CleanseEffectSpec;return false;}
+	private static boolean modifierParameterApplies(ModifierSpec modifier,String field){return "repeat_count".equals(field)&&modifier instanceof RepeatModifierSpec||("intensity_numerator".equals(field)||"intensity_denominator".equals(field))&&modifier instanceof IntensityModifierSpec||"additional_turns".equals(field)&&modifier instanceof ExtendDurationModifierSpec||"additional_targets".equals(field)&&modifier instanceof PierceModifierSpec||("bounces".equals(field)||"bounce_range".equals(field))&&modifier instanceof BounceModifierSpec;}
+	private static List<String> skillEnumOptions(SkillSpec skill,String key,List<String> options){if("effect_primary_variant".equals(key))return effectVariantOptions(skill.effects().primary().family(),options);if("effect_secondary_variant".equals(key))return effectVariantOptions(skill.effects().secondary()==null?null:skill.effects().secondary().effect().family(),options);return options;}
+	private static List<String> effectVariantOptions(EffectFamily family,List<String> options){if(family==null)return Collections.emptyList();List<String> result=new ArrayList<>();for(String option:options)try{EffectVariantKey key=EffectVariantKey.valueOf(option);if(key!=EffectVariantKey.UNCONFIGURED&&effectFamily(key)==family)result.add(option);}catch(IllegalArgumentException ignored){}return result;}
+	private static EffectFamily effectFamily(EffectVariantKey key){switch(key){case DIRECT_DAMAGE:case PERCENT_MAX_HP_DAMAGE:case MISSING_HP_DAMAGE:case EXECUTE:return EffectFamily.DAMAGE;case APPLY_STATUS:return EffectFamily.STATUS;case PUSH:case PULL:case THROW:case DASH:case TELEPORT:case SWAP_POSITION:return EffectFamily.MOVEMENT;case HEAL:case BARRIER:case TEMPORARY_HP:case MITIGATE:case REDIRECT_DAMAGE:case CLEANSE:return EffectFamily.RECOVERY_DEFENSE;case RESOURCE_OPERATION:return EffectFamily.RESOURCE_OPERATION;default:return null;}}
+	private static String disabledClassNodeField(StableTarget owner,String key){ResourceOperationSpec operation=null;CostSpec cost=null;if(owner instanceof ResourceFlowComponentSpec)operation=((ResourceFlowComponentSpec)owner).operation();else if(owner instanceof ActiveResourceOperationComponentSpec){operation=((ActiveResourceOperationComponentSpec)owner).operation();cost=((ActiveResourceOperationComponentSpec)owner).cost();}else if(owner instanceof ResourceClassOperationSpec){operation=((ResourceClassOperationSpec)owner).operation();cost=((ResourceClassOperationSpec)owner).cost();}else return null;if(key.startsWith("operation.")){String field=key.substring("operation.".length());boolean convert=operation instanceof ConvertResourceSpec;if(("source".equals(field)||"target".equals(field)||"source_amount".equals(field)||"target_amount".equals(field))&&!convert)return "Choose CONVERT first.";if("resource".equals(field)&&convert)return "CONVERT uses explicit source and target references.";if("amount".equals(field)&&(operation instanceof ClearResourceSpec||operation instanceof SuppressResourceSpec||convert))return "The selected operation has no single amount field.";if("duration_turns".equals(field)&&!(operation instanceof ReserveResourceSpec)&&!(operation instanceof SuppressResourceSpec))return "Choose RESERVE or SUPPRESS first.";}if("cost.resource".equals(key)&&!(cost instanceof ResourceCostSpec))return "Choose RESOURCE cost first.";if("cost_amount".equals(key)&&(cost==null||cost instanceof NoCostSpec))return "Choose a priced cost first.";return null;}
 
 	private static Set<String> csv(String value) {
 		LinkedHashSet<String> result = new LinkedHashSet<>();

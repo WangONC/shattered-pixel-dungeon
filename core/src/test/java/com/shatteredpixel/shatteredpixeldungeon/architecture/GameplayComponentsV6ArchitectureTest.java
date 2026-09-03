@@ -117,6 +117,7 @@ public class GameplayComponentsV6ArchitectureTest {
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClass.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6.java",
 			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndCreateClassV6ControllerView.java",
+			"core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/ClassResourceHUD.java",
 			"headless/src/main/java/com/shatteredpixel/shatteredpixeldungeon/headless/HeadlessPlayerBuildAdapter.java");
 	private static final String V6_CONTRACT_RUNTIME_BRIDGE =
 			"contract/v6/runtime/V6RuleRuntimeBridge.java";

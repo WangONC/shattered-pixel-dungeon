@@ -244,6 +244,7 @@ public class Hero extends Char implements V6PayloadHost {
 	//Null for vanilla heroes. Configuration and mutable state are stored together in the Hero bundle.
 	private RuleRuntime ruleRuntime;
 	private transient V6RuleRuntimeBridge gameplayComponentsV6RuntimeBridge;
+	private transient String gameplayComponentsV6RuntimeDiagnostic = "";
 	private String classBuildSpecV6Payload;
 	private String classRuntimeStateV6Payload;
 	
@@ -372,8 +373,12 @@ public class Hero extends Char implements V6PayloadHost {
 		classBuildSpecV6Payload = bundle.contains(CLASS_BUILD_SPEC_V6) ? bundle.getString(CLASS_BUILD_SPEC_V6) : null;
 		classRuntimeStateV6Payload = bundle.contains(CLASS_RUNTIME_STATE_V6) ? bundle.getString(CLASS_RUNTIME_STATE_V6) : null;
 		gameplayComponentsV6RuntimeBridge = null;
+		gameplayComponentsV6RuntimeDiagnostic = "";
 
 		belongings.restoreFromBundle( bundle );
+		// The real load boundary reconstructs compiled runtime state. Failure is
+		// diagnostic-only and fail-closed: no repair and no legacy fallback.
+		V6RuleRuntimeBridge.restore(this);
 	}
 	
 	public static void preview( GamesInProgress.Info info, Bundle bundle ) {
@@ -466,6 +471,12 @@ public class Hero extends Char implements V6PayloadHost {
 		this.gameplayComponentsV6RuntimeBridge = bridge;
 	}
 
+	public String gameplayComponentsV6RuntimeDiagnostic() { return gameplayComponentsV6RuntimeDiagnostic; }
+
+	public void setGameplayComponentsV6RuntimeDiagnostic(String diagnostic) {
+		this.gameplayComponentsV6RuntimeDiagnostic = diagnostic == null ? "" : diagnostic;
+	}
+
 	public void setGameplayComponentsV6Payloads(String buildPayload, String runtimePayload) {
 		this.classBuildSpecV6Payload = buildPayload;
 		this.classRuntimeStateV6Payload = runtimePayload;
@@ -488,6 +499,21 @@ public class Hero extends Char implements V6PayloadHost {
 
 	public String gameplayComponentsV6RuntimePayload() {
 		return classRuntimeStateV6Payload;
+	}
+
+	public boolean hasGameplayComponentsV6ItemCost(String category,int count) {
+		return findGameplayComponentsV6CostItem(category,count) != null;
+	}
+
+	public boolean commitGameplayComponentsV6ItemCost(String category,int count) {
+		Item item=findGameplayComponentsV6CostItem(category,count);if(item==null)return false;
+		for(int i=0;i<count;i++)item.detach(belongings.backpack);return true;
+	}
+
+	private Item findGameplayComponentsV6CostItem(String category,int count) {
+		if(category==null||count<1)return null;for(Item item:belongings){boolean matches;
+			switch(category){case "ANY_WEAPON":matches=item instanceof Weapon;break;case "ANY_CONSUMABLE":matches=item instanceof Scroll||item instanceof Potion||item instanceof com.shatteredpixel.shatteredpixeldungeon.plants.Plant.Seed||item instanceof com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;break;case "SCROLL":matches=item instanceof Scroll;break;case "POTION":matches=item instanceof Potion;break;case "SEED":matches=item instanceof com.shatteredpixel.shatteredpixeldungeon.plants.Plant.Seed;break;case "RUNESTONE":matches=item instanceof com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;break;default:matches=false;}
+			if(matches&&item.quantity()>=count)return item;}return null;
 	}
 
 	@Override
@@ -772,7 +798,7 @@ public class Hero extends Char implements V6PayloadHost {
 		}
 
 		if (dmg < 0) dmg = 0;
-		return dmg;
+		return gameplayComponentsV6RuntimeBridge == null ? dmg : gameplayComponentsV6RuntimeBridge.basicAttackDamage(dmg);
 	}
 
 	//damage rolls that come from the hero can have their RNG influenced by clover
@@ -830,6 +856,7 @@ public class Hero extends Char implements V6PayloadHost {
 	}
 
 	public boolean canAttack(Char enemy){
+		if (gameplayComponentsV6RuntimeBridge != null && !gameplayComponentsV6RuntimeBridge.basicAttackAllowed()) return false;
 		if (enemy == null || pos == enemy.pos || !Actor.chars().contains(enemy)) {
 			return false;
 		}
@@ -867,7 +894,8 @@ public class Hero extends Char implements V6PayloadHost {
 
 		if (!RingOfForce.fightingUnarmed(this)) {
 			
-			return delay * belongings.attackingWeapon().delayFactor( this );
+			float result = delay * belongings.attackingWeapon().delayFactor( this );
+			return gameplayComponentsV6RuntimeBridge == null ? result : gameplayComponentsV6RuntimeBridge.basicAttackDelay(result);
 			
 		} else {
 			//Normally putting furor speed on unarmed attacks would be unnecessary
@@ -885,7 +913,8 @@ public class Hero extends Char implements V6PayloadHost {
 				delay = ((Weapon)belongings.weapon).augment.delayFactor(delay);
 			}
 
-			return delay/speed;
+			float result = delay/speed;
+			return gameplayComponentsV6RuntimeBridge == null ? result : gameplayComponentsV6RuntimeBridge.basicAttackDelay(result);
 		}
 	}
 

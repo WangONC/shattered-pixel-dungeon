@@ -1,0 +1,7 @@
+package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
+public final class MissingHpDamageEffectSpec implements EffectSpec {
+	private final StableId effectId;private final ValueSpec baseAmount;private final int missingHpNumerator,missingHpDenominator,absoluteCap;private final DirectDamageEffectSpec.DamageType damageType;
+	public MissingHpDamageEffectSpec(StableId effectId,ValueSpec baseAmount,int numerator,int denominator,int absoluteCap,DirectDamageEffectSpec.DamageType damageType){if(effectId==null||baseAmount==null||damageType==null||numerator<0||denominator<1||absoluteCap<1)throw new IllegalArgumentException("invalid missing HP damage fields");this.effectId=effectId;this.baseAmount=baseAmount;this.missingHpNumerator=numerator;this.missingHpDenominator=denominator;this.absoluteCap=absoluteCap;this.damageType=damageType;}
+	@Override public StableId effectId(){return effectId;}@Override public EffectFamily family(){return EffectFamily.DAMAGE;}@Override public EffectVariantKey variantKey(){return EffectVariantKey.MISSING_HP_DAMAGE;}public ValueSpec baseAmount(){return baseAmount;}public int missingHpNumerator(){return missingHpNumerator;}public int missingHpDenominator(){return missingHpDenominator;}public int absoluteCap(){return absoluteCap;}public DirectDamageEffectSpec.DamageType damageType(){return damageType;}
+}

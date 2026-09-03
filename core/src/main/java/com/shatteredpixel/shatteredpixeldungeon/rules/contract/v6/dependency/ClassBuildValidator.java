@@ -27,6 +27,7 @@ public final class ClassBuildValidator {
 		unsupported(result, build.buildId(), "progression", build.progression().state());
 		Map<String,Integer> initialByGroup=new HashMap<>();for(ModeSpec mode:build.modes())if(mode.initial())initialByGroup.put(mode.group().targetId().value(),initialByGroup.getOrDefault(mode.group().targetId().value(),0)+1);
 		for(ModeGroupSpec group:build.modeGroups())if(group.policy()==ModeGroupSpec.ModeGroupPolicy.EXCLUSIVE&&initialByGroup.getOrDefault(group.id().value(),0)>1)result.add(new DependencyDiagnostic(group.id(),"initial_modes",DependencyState.HARD_CONFLICT,group.id(),"mode_group.multiple_initial"));
+		result.addAll(new GlobalNodeIdentityValidator().validate(build).diagnostics());
 		return new DependencyReport(result);
 	}
 	private static void unsupported(List<DependencyDiagnostic> result, com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId owner, String path, ImplementationState state){

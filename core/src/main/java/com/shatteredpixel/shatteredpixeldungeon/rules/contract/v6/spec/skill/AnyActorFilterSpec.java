@@ -1,0 +1,1 @@
+package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill;public final class AnyActorFilterSpec implements EntityFilterExpr{@Override public String variantKey(){return "ANY_ACTOR";}}

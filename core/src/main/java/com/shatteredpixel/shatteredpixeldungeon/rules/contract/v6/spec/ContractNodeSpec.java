@@ -5,7 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.Stabl
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.RefKind;
 
 /** Identity boundary for P02/P03 nodes; it deliberately contains no gameplay payload. */
-public final class ContractNodeSpec implements StableTarget {
+public class ContractNodeSpec implements StableTarget {
 	public enum NodeKind { COMPONENT, CONSTRAINT, OPERATION, SKILL }
 	private final StableId id; private final DisplayName displayName; private final NodeKind nodeKind;
 	private final String variantKey; private final ImplementationState implementationState;

@@ -2,6 +2,9 @@ package com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.dependency;
 
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.identity.StableId;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.component.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.resource.ResourceOperationSpec;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.*;
 import java.util.ArrayList;import java.util.Collections;import java.util.HashMap;import java.util.HashSet;import java.util.LinkedHashMap;import java.util.List;import java.util.Map;import java.util.Set;
 
 /** Pure read-only declaration resolver. It never fills, rewrites, removes, or reorders references. */
@@ -27,6 +30,12 @@ public final class DependencyResolver {
 			}
 		}
 		for(SynthesisRecipeSpec recipe:build.recipes())for(int i=0;i<recipe.inputs().size();i++)requests.add(new DependencyRequest(recipe.id(),"inputs["+i+"].property",recipe.inputs().get(i).property()));
+		for(SkillSpec skill:build.skills())if(skill.typed())collectSkill(requests,skill);
+		for(ContractNodeSpec node:build.classComponents()){
+			if(node instanceof ResourceFlowComponentSpec)collectOperation(requests,node.id(),"operation",((ResourceFlowComponentSpec)node).operation());
+			else if(node instanceof ActiveResourceOperationComponentSpec){ActiveResourceOperationComponentSpec value=(ActiveResourceOperationComponentSpec)node;collectOperation(requests,node.id(),"operation",value.operation());collectCost(requests,node.id(),"cost",value.cost());}
+		}
+		for(ContractNodeSpec node:build.classOperations())if(node instanceof ResourceClassOperationSpec){ResourceClassOperationSpec value=(ResourceClassOperationSpec)node;if(value.sourceComponent()!=null)requests.add(new DependencyRequest(node.id(),"source_component",value.sourceComponent()));collectOperation(requests,node.id(),"operation",value.operation());collectCost(requests,node.id(),"cost",value.cost());}
 		requests.addAll(additional);
 		Set<StableId> cyclicNodes=cyclicNodes(index,requests);
 		for(DependencyRequest request:requests){
@@ -35,6 +44,12 @@ public final class DependencyResolver {
 		}
 		return new DependencyReport(result);
 	}
+	private static void collectSkill(List<DependencyRequest> out,SkillSpec skill){collectCondition(out,skill.id(),"condition",skill.condition());collectEffect(out,skill.id(),"effects.primary",skill.effects().primary());if(skill.effects().secondary()!=null)collectEffect(out,skill.id(),"effects.secondary",skill.effects().secondary().effect());collectCost(out,skill.id(),"cost",skill.cost());}
+	private static void collectCondition(List<DependencyRequest> out,StableId owner,String path,ConditionExpr condition){if(condition instanceof AllOfCondition){int i=0;for(ConditionExpr child:((AllOfCondition)condition).children())collectCondition(out,owner,path+"["+(i++)+"]",child);}else if(condition instanceof ResourceCompareCondition)out.add(new DependencyRequest(owner,path+".resource",((ResourceCompareCondition)condition).resource()));else if(condition instanceof BuiltinStatCompareCondition)collectValue(out,owner,path+".value",((BuiltinStatCompareCondition)condition).value());}
+	private static void collectEffect(List<DependencyRequest> out,StableId owner,String path,EffectSpec effect){if(effect instanceof ResourceOperationEffectSpec)collectOperation(out,owner,path+".operation",((ResourceOperationEffectSpec)effect).operation());else if(effect instanceof DirectDamageEffectSpec)collectValue(out,owner,path+".amount",((DirectDamageEffectSpec)effect).amount());else if(effect instanceof MissingHpDamageEffectSpec)collectValue(out,owner,path+".base_amount",((MissingHpDamageEffectSpec)effect).baseAmount());else if(effect instanceof HealEffectSpec)collectValue(out,owner,path+".amount",((HealEffectSpec)effect).amount());else if(effect instanceof BarrierEffectSpec)collectValue(out,owner,path+".amount",((BarrierEffectSpec)effect).amount());else if(effect instanceof TemporaryHpEffectSpec)collectValue(out,owner,path+".amount",((TemporaryHpEffectSpec)effect).amount());else if(effect instanceof ApplyStatusEffectSpec)collectValue(out,owner,path+".intensity",((ApplyStatusEffectSpec)effect).intensity());}
+	private static void collectOperation(List<DependencyRequest> out,StableId owner,String path,ResourceOperationSpec operation){int i=0;for(com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.ResourceRef ref:operation.referencedResources())out.add(new DependencyRequest(owner,path+".resources["+(i++)+"]",ref));}
+	private static void collectCost(List<DependencyRequest> out,StableId owner,String path,CostSpec cost){if(cost instanceof ResourceCostSpec)out.add(new DependencyRequest(owner,path+".resource",((ResourceCostSpec)cost).resource()));}
+	private static void collectValue(List<DependencyRequest> out,StableId owner,String path,ValueSpec value){if(value instanceof ScaledValueSpec&&((ScaledValueSpec)value).source() instanceof ResourceValueSource)out.add(new DependencyRequest(owner,path+".source.resource",((ResourceValueSource)((ScaledValueSpec)value).source()).resource()));}
 
 	private static Map<StableId,List<StableTarget>> index(ClassBuildSpec build){Map<StableId,List<StableTarget>> result=new LinkedHashMap<>();for(StableTarget value:build.allTargets())result.computeIfAbsent(value.id(),key->new ArrayList<>()).add(value);return result;}
 	private static DependencyDiagnostic resolveOne(Map<StableId,List<StableTarget>> index,DependencyRequest request){

@@ -54,6 +54,7 @@ final class P03ImplementationEvidence {
 		register(out, row("COST.NO_COST"));
 		return Collections.unmodifiableMap(out);
 	}
+	static java.util.Set<String> requiredVariants(){return Collections.unmodifiableSet(new java.util.LinkedHashSet<>(registry().keySet()));}
 
 	private static Row row(String qualifiedVariantKey) {
 		return new Row(qualifiedVariantKey, SCHEMA, BUILDER, DEPENDENCY, FORMATTER, BUDGET,

@@ -7,6 +7,15 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.RuleResourceState;
 import com.shatteredpixel.shatteredpixeldungeon.rules.RuleRuntime;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.watabou.noosa.Game;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.ClassCompilePlan;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.compile.CompiledResource;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.ResourceRef;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.V6RuleRuntimeBridge;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ClassRuntimeState;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.state.ResourceState;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /** Compact multi-resource combat readout. The primary pool is always visible. */
 public class ClassResourceHUD extends com.watabou.noosa.ui.Component {
@@ -19,9 +28,10 @@ public class ClassResourceHUD extends com.watabou.noosa.ui.Component {
 	@Override public void update() {
 		super.update();
 		RuleRuntime runtime = Dungeon.hero == null ? null : Dungeon.hero.ruleRuntime();
-		visible = runtime != null && runtime.classBuild() != null && !runtime.classBuild().resources.isEmpty();
+		V6RuleRuntimeBridge v6 = Dungeon.hero == null ? null : Dungeon.hero.gameplayComponentsV6RuntimeBridge();
+		visible = v6 != null ? !v6.plan().resources().isEmpty() : runtime != null && runtime.classBuild() != null && !runtime.classBuild().resources.isEmpty();
 		if (!visible) return;
-		String value = readout(runtime);
+		String value = v6 == null ? readout(runtime) : readout(v6.plan(),v6.state());
 		if (!last.equals(value)) {
 			boolean firstValue = last.isEmpty();
 			last = value;
@@ -45,5 +55,14 @@ public class ClassResourceHUD extends com.watabou.noosa.ui.Component {
 				.append(state.spec == null ? state.engine.displayName() : state.spec.displayName()).append(' ')
 				.append(state.value).append('/').append(state.max);
 		return value.toString();
+	}
+
+	/** P04 HUD model: labels and bounds come from declarations, values from runtime state. */
+	public static String readout(ClassCompilePlan plan,ClassRuntimeState state){
+		if(plan==null||state==null||!plan.buildId().equals(state.buildId()))return "";
+		List<CompiledResource> visible=new ArrayList<>();for(CompiledResource value:plan.resources())if(value.hudVisible())visible.add(value);
+		visible.sort(Comparator.comparingInt(CompiledResource::hudOrder).thenComparing(CompiledResource::id));StringBuilder out=new StringBuilder();
+		for(CompiledResource declaration:visible){ResourceState value=state.resources().get(new ResourceRef(declaration.id(),""));if(value==null)continue;if(out.length()>0)out.append("  ");out.append(declaration.displayName()).append(' ').append(value.current()).append('/').append(declaration.maximum());}
+		return out.toString();
 	}
 }

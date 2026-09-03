@@ -43,6 +43,8 @@ public final class ResourceSpec implements DeclarationSpec {
 	@Override public StableId id() { return id; }
 	@Override public DisplayName displayName() { return displayName; }
 	@Override public RefKind refKind() { return RefKind.RESOURCE; }
+	// The declaration envelope remains DECLARED for canonical P01 compatibility.
+	// P04 executable admission is based on its compiled resource node.
 	@Override public ImplementationState implementationState() { return ImplementationState.DECLARED; }
 	public int minimum() { return minimum; }
 	public int maximum() { return maximum; }

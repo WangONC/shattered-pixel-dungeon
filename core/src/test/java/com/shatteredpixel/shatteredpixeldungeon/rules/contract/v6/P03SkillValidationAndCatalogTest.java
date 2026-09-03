@@ -38,10 +38,7 @@ public class P03SkillValidationAndCatalogTest {
 		assertTrue(zh,zh.contains("7 点")&&zh.contains("需要视线")&&zh.contains("无消耗"));
 		BuilderBudgetLedger budget=session.state().budget();assertEquals(BuilderBudgetPolicy.P03TypedSkill.PRICE_VERSION,budget.priceVersion());assertEquals(11,budget.entries().size());
 		assertEquals(11,budget.entries().stream().map(BuilderBudgetLedger.Entry::priceKey).distinct().count());
-		for (com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.catalog.VariantDescriptor descriptor :
-				com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.catalog.GameplayVariantCatalog.playerExposed()) {
-			assertTrue(descriptor.qualifiedKey(), budget.entries().stream().anyMatch(v->descriptor.priceKey().equals(v.priceKey())));
-		}
+		for(String price:new String[]{"skill.trigger.active","skill.condition.all_of","skill.condition.always","skill.effect.direct_damage","skill.chain.primary","skill.chain.immediate_secondary","skill.delivery.direct","skill.target.selector.selected_actor","skill.target.coverage.single","skill.target.filter.enemy","skill.cost.none"})assertTrue(price,budget.entries().stream().anyMatch(v->price.equals(v.priceKey())));
 		assertTrue(budget.entries().stream().anyMatch(v->"skill.effect.direct_damage".equals(v.priceKey())));
 		assertTrue(budget.entries().stream().anyMatch(v->"skill.chain.immediate_secondary".equals(v.priceKey())));
 		assertEquals(budget.spent(),budget.entries().stream().mapToInt(BuilderBudgetLedger.Entry::amount).sum());

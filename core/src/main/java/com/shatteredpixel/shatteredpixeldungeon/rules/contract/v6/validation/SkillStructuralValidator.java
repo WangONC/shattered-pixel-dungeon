@@ -41,14 +41,18 @@ public final class SkillStructuralValidator {
 		unique(result, skill, ids, "activation.node_id", skill.activation().nodeId());
 		unique(result, skill, ids, "effects.chain_id", skill.effects().chainId());
 		unique(result, skill, ids, "effects.primary.effect_id", primary.effectId());
+		if(primary instanceof ResourceOperationEffectSpec)unique(result,skill,ids,"effects.primary.operation_id",((ResourceOperationEffectSpec)primary).operation().operationId());
 		if (skill.effects().secondary() != null) unique(result, skill, ids, "effects.secondary.effect_id", skill.effects().secondary().effect().effectId());
+		if(skill.effects().secondary()!=null&&skill.effects().secondary().effect() instanceof ResourceOperationEffectSpec)unique(result,skill,ids,"effects.secondary.operation_id",((ResourceOperationEffectSpec)skill.effects().secondary().effect()).operation().operationId());
 		unique(result, skill, ids, "delivery.node_id", skill.delivery().nodeId());
 		unique(result, skill, ids, "targeting.node_id", skill.targeting().nodeId());
 		if (skill.modifier() != null) unique(result, skill, ids, "modifier.node_id", skill.modifier().nodeId());
 		unique(result, skill, ids, "cost.node_id", skill.cost().nodeId());
 		if (skill.constraint() != null) unique(result, skill, ids, "constraint.node_id", skill.constraint().constraintId());
+		collectConditionIds(result,skill,ids,skill.condition(),"condition");
 		return new DependencyReport(result);
 	}
+	private static void collectConditionIds(List<DependencyDiagnostic> out,SkillSpec skill,Set<StableId> seen,ConditionExpr value,String path){if(value instanceof AllOfCondition){int index=0;for(ConditionExpr child:((AllOfCondition)value).children())collectConditionIds(out,skill,seen,child,path+"["+(index++)+"]");}else if(value instanceof BuiltinStatCompareCondition)unique(out,skill,seen,path+".node_id",((BuiltinStatCompareCondition)value).nodeId());else if(value instanceof ResourceCompareCondition)unique(out,skill,seen,path+".node_id",((ResourceCompareCondition)value).nodeId());}
 	private static void unique(List<DependencyDiagnostic> out, SkillSpec skill, Set<StableId> seen, String path, StableId id) {
 		if (!seen.add(id)) out.add(new DependencyDiagnostic(skill.id(), path, DependencyState.HARD_CONFLICT, id, "skill.duplicate_nested_id"));
 	}

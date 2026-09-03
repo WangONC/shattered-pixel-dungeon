@@ -9,6 +9,8 @@ import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.ref.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalBuildCodec;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.save.CanonicalLoadResult;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.component.*;
+import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.resource.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.spec.skill.*;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.EffectExecutorRegistry;
 import com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.validation.SkillValidation;
@@ -26,6 +28,7 @@ public final class BuilderReducer {
 	private final BuilderBudgetPolicy budgetPolicy;
 	private final BuilderDraftEditor fields = new BuilderDraftEditor();
 	private final SkillDraftEditor skillFields = new SkillDraftEditor();
+	private final ClassNodeDraftEditor classFields = new ClassNodeDraftEditor();
 	private final CanonicalBuildCodec codec = new CanonicalBuildCodec();
 
 	public BuilderReducer(IdGenerator ids) { this(ids, new BuilderBudgetPolicy.P03TypedSkill()); }
@@ -103,13 +106,20 @@ public final class BuilderReducer {
 					Collections.<SynthesisRecipeSpec.PropertyInput>emptyList(),value.outputVariantKey(),ImplementationState.DEFERRED));
 		} else if (command instanceof BuilderCommand.CreateClassComponent) {
 			BuilderCommand.CreateClassComponent value=(BuilderCommand.CreateClassComponent)command;
-			out.addClassComponent(node(build,"component",value.displayName(),ContractNodeSpec.NodeKind.COMPONENT,value.variantKey()));
+			if(BasicAttackComponentSpec.VARIANT.equals(value.variantKey()))out.addClassComponent(new BasicAttackComponentSpec(next("component",build),DisplayName.of(value.displayName()),BasicAttackComponentSpec.BasicAttackAvailability.FULL,1,1,new ItemFilterSpec(ItemFilterSpec.ItemCategory.ANY_WEAPON),1));
+			else if(ResourceFlowComponentSpec.VARIANT.equals(value.variantKey()))out.addClassComponent(new ResourceFlowComponentSpec(next("component",build),DisplayName.of(value.displayName()),new EventTriggerSpec(next("trigger",build),com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.runtime.GameplayEventContext.RuleEventType.WAIT),AllOfCondition.always(),new GainResourceSpec(next("op",build),ResourceHolderSelector.CLASS_OWNER,new ResourceRef(next("res",build),""),new FixedValueSpec(1),ResourceSpec.ResourceOverflowPolicy.FAIL)));
+			else if(ActiveResourceOperationComponentSpec.VARIANT.equals(value.variantKey())){
+				StableId componentId=next("component",build),operationId=next("op",build);ResourceRef missing=new ResourceRef(next("res",build),"");
+				ActiveResourceOperationComponentSpec component=new ActiveResourceOperationComponentSpec(componentId,DisplayName.of(value.displayName()),DisplayName.of(value.displayName()),operationId,new GainResourceSpec(next("op",build),ResourceHolderSelector.CLASS_OWNER,missing,new FixedValueSpec(1),ResourceSpec.ResourceOverflowPolicy.FAIL),new NoCostSpec(next("cost",build)),1);
+				out.addClassComponent(component);out.addClassOperation(new ResourceClassOperationSpec(operationId,DisplayName.of(value.displayName()),new ComponentRef(componentId,value.displayName()),new ActiveTriggerSpec(next("trigger",build)),AllOfCondition.always(),new NoCostSpec(next("cost",build)),1,new GainResourceSpec(next("op",build),ResourceHolderSelector.CLASS_OWNER,missing,new FixedValueSpec(1),ResourceSpec.ResourceOverflowPolicy.FAIL),true,build.classOperations().size()));
+			}else out.addClassComponent(node(build,"component",value.displayName(),ContractNodeSpec.NodeKind.COMPONENT,value.variantKey()));
 		} else if (command instanceof BuilderCommand.CreateClassConstraint) {
 			BuilderCommand.CreateClassConstraint value=(BuilderCommand.CreateClassConstraint)command;
 			out.addClassConstraint(node(build,"constraint",value.displayName(),ContractNodeSpec.NodeKind.CONSTRAINT,value.variantKey()));
 		} else if (command instanceof BuilderCommand.CreateClassOperation) {
 			BuilderCommand.CreateClassOperation value=(BuilderCommand.CreateClassOperation)command;
-			out.addClassOperation(node(build,"op",value.displayName(),ContractNodeSpec.NodeKind.OPERATION,value.variantKey()));
+			if(ResourceClassOperationSpec.VARIANT.equals(value.variantKey()))out.addClassOperation(new ResourceClassOperationSpec(next("op",build),DisplayName.of(value.displayName()),null,new ActiveTriggerSpec(next("trigger",build)),AllOfCondition.always(),new NoCostSpec(next("cost",build)),1,new GainResourceSpec(next("op",build),ResourceHolderSelector.CLASS_OWNER,new ResourceRef(next("res",build),""),new FixedValueSpec(1),ResourceSpec.ResourceOverflowPolicy.FAIL),true,build.classOperations().size()));
+			else out.addClassOperation(node(build,"op",value.displayName(),ContractNodeSpec.NodeKind.OPERATION,value.variantKey()));
 		} else if (command instanceof BuilderCommand.CreateSkill) {
 			BuilderCommand.CreateSkill value=(BuilderCommand.CreateSkill)command;
 			if(SkillSpec.VARIANT.equals(value.variantKey())){
@@ -123,20 +133,22 @@ public final class BuilderReducer {
 						new UnconfiguredSkillConstraintSpec(next("constraint",build))));
 			}else out.addSkill(SkillSpec.deferredEnvelope(next("skill",build),DisplayName.of(value.displayName()),value.variantKey(),ImplementationState.DEFERRED));
 		} else if(command instanceof BuilderCommand.SelectTriggerVariant){BuilderCommand.SelectTriggerVariant value=(BuilderCommand.SelectTriggerVariant)command;return skillFields.selectTrigger(build,value.skillId(),value.variantKey());
-		} else if(command instanceof BuilderCommand.SelectConditionVariant){BuilderCommand.SelectConditionVariant value=(BuilderCommand.SelectConditionVariant)command;return skillFields.selectCondition(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SelectConditionVariant){BuilderCommand.SelectConditionVariant value=(BuilderCommand.SelectConditionVariant)command;return skillFields.selectCondition(build,value.skillId(),value.variantKey(),next("condition",build),next("res",build));
 		} else if(command instanceof BuilderCommand.SelectEffectFamily){BuilderCommand.SelectEffectFamily value=(BuilderCommand.SelectEffectFamily)command;return skillFields.selectEffectFamily(build,value.skillId(),value.effectSlot(),value.familyKey(),next("effect",build));
-		} else if(command instanceof BuilderCommand.SelectEffectVariant){BuilderCommand.SelectEffectVariant value=(BuilderCommand.SelectEffectVariant)command;return skillFields.selectEffectVariant(build,value.skillId(),value.effectSlot(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SelectEffectVariant){BuilderCommand.SelectEffectVariant value=(BuilderCommand.SelectEffectVariant)command;return skillFields.selectEffectVariant(build,value.skillId(),value.effectSlot(),value.variantKey(),next("op",build),next("res",build),next("res",build));
 		} else if(command instanceof BuilderCommand.SetTargetingSelector){BuilderCommand.SetTargetingSelector value=(BuilderCommand.SetTargetingSelector)command;return skillFields.setTargetingSelector(build,value.skillId(),value.variantKey());
 		} else if(command instanceof BuilderCommand.SetTargetingCoverage){BuilderCommand.SetTargetingCoverage value=(BuilderCommand.SetTargetingCoverage)command;return skillFields.setTargetingCoverage(build,value.skillId(),value.variantKey());
 		} else if(command instanceof BuilderCommand.SetTargetingFilter){BuilderCommand.SetTargetingFilter value=(BuilderCommand.SetTargetingFilter)command;return skillFields.setTargetingFilter(build,value.skillId(),value.variantKey());
 		} else if(command instanceof BuilderCommand.SetDelivery){BuilderCommand.SetDelivery value=(BuilderCommand.SetDelivery)command;return skillFields.setDelivery(build,value.skillId(),value.variantKey());
-		} else if(command instanceof BuilderCommand.SetModifier){BuilderCommand.SetModifier value=(BuilderCommand.SetModifier)command;return skillFields.setModifier(build,value.skillId(),value.variantKey());
-		} else if(command instanceof BuilderCommand.SetCost){BuilderCommand.SetCost value=(BuilderCommand.SetCost)command;return skillFields.setCost(build,value.skillId(),value.variantKey());
+		} else if(command instanceof BuilderCommand.SetModifier){BuilderCommand.SetModifier value=(BuilderCommand.SetModifier)command;return skillFields.setModifier(build,value.skillId(),value.variantKey(),next("modifier",build));
+		} else if(command instanceof BuilderCommand.SetCost){BuilderCommand.SetCost value=(BuilderCommand.SetCost)command;return skillFields.setCost(build,value.skillId(),value.variantKey(),next("res",build));
 		} else if(command instanceof BuilderCommand.SetSkillConstraint){BuilderCommand.SetSkillConstraint value=(BuilderCommand.SetSkillConstraint)command;return skillFields.setConstraint(build,value.skillId(),value.variantKey());
 		} else if(command instanceof BuilderCommand.SetTypedSkillField){BuilderCommand.SetTypedSkillField value=(BuilderCommand.SetTypedSkillField)command;return skillFields.setField(build,value.skillId(),value.ownerPath(),value.variantKey(),value.fieldKey(),value.value());
 		} else if(command instanceof BuilderCommand.SetTypedSkillReference){BuilderCommand.SetTypedSkillReference value=(BuilderCommand.SetTypedSkillReference)command;return skillFields.setReference(build,value.skillId(),value.ownerPath(),value.variantKey(),value.fieldKey(),value.reference());
 		} else if (command instanceof BuilderCommand.SetFieldValue) {
 			BuilderCommand.SetFieldValue value=(BuilderCommand.SetFieldValue)command;
+			StableTarget owner=BuilderDraftEditor.requireTarget(build,StableId.fromStored(value.ownerId()));
+			if(classFields.supports(owner))return classFields.setField(build,value.ownerId(),value.variantKey(),value.fieldKey(),value.value());
 			return fields.setField(build,value.ownerId(),value.variantKey(),value.fieldKey(),value.value());
 		} else if (command instanceof BuilderCommand.EditResourceField) {
 			BuilderCommand.EditResourceField value=(BuilderCommand.EditResourceField)command;
@@ -146,6 +158,8 @@ public final class BuilderReducer {
 			return fields.setField(build,value.markId(),com.shatteredpixel.shatteredpixeldungeon.rules.contract.v6.form.V6FormSchemas.MARK,value.fieldKey(),value.value());
 		} else if (command instanceof BuilderCommand.SetReference) {
 			BuilderCommand.SetReference value=(BuilderCommand.SetReference)command;
+			StableTarget owner=BuilderDraftEditor.requireTarget(build,StableId.fromStored(value.ownerId()));
+			if(classFields.supports(owner))return classFields.setReference(build,value.ownerId(),value.variantKey(),value.fieldKey(),value.reference());
 			return fields.setReference(build,value.ownerId(),value.variantKey(),value.fieldKey(),value.reference());
 		} else if (command instanceof BuilderCommand.RenameDeclaration) {
 			BuilderCommand.RenameDeclaration value=(BuilderCommand.RenameDeclaration)command;
@@ -157,6 +171,7 @@ public final class BuilderReducer {
 		} else if (command instanceof BuilderCommand.RebindReference) {
 			BuilderCommand.RebindReference value=(BuilderCommand.RebindReference)command;
 			StableTarget owner=BuilderDraftEditor.requireTarget(build,StableId.fromStored(value.ownerId()));
+			if(classFields.supports(owner))return classFields.setReference(build,value.ownerId(),((ContractNodeSpec)owner).variantKey(),value.fieldKey(),value.newTarget());
 			return fields.setReference(build,value.ownerId(),BuilderDraftEditor.variantOf(owner),value.fieldKey(),value.newTarget());
 		} else throw new IllegalArgumentException("unsupported P02 builder command " + command.typeKey());
 		return out.build();

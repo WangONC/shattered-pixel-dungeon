@@ -21,6 +21,8 @@ public final class DisplayName {
 	}
 
 	public String text() { return text; }
+	/** Locale-neutral fallback used by immutable compiled/runtime projections. */
+	public String fallback() { return text; }
 	@Override public boolean equals(Object other) { return other instanceof DisplayName && text.equals(((DisplayName)other).text); }
 	@Override public int hashCode() { return text.hashCode(); }
 	@Override public String toString() { return text; }
